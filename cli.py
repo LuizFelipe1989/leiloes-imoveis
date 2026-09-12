@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 from calculator import analise_rapida
 from db import connect, save_analise, upsert_listings, listar_com_ultima_analise
-from scraper import zukerman, sold, caixa
+from scraper import zukerman, sold, caixa, bancodobrasil
 from scraper.filters import eh_residencial_ou_terreno
 
 
@@ -46,6 +46,15 @@ def cmd_atualizar(args):
             todas.extend(r)
         except Exception as e:
             print(f"[caixa] erro: {e}")
+
+    if "bancodobrasil" in args.fontes:
+        print(f"[bancodobrasil] buscando {ufs}...")
+        try:
+            r = bancodobrasil.buscar(estados=ufs)
+            print(f"[bancodobrasil] {len(r)} imóveis")
+            todas.extend(r)
+        except Exception as e:
+            print(f"[bancodobrasil] erro: {e}")
 
     antes = len(todas)
     # foco atual: só residencial e terreno (sem salas/imóveis comerciais)
@@ -108,7 +117,8 @@ def main():
     sub = parser.add_subparsers(dest="comando", required=True)
 
     p_atualizar = sub.add_parser("atualizar", help="Busca imóveis nos sites configurados")
-    p_atualizar.add_argument("--fontes", nargs="+", default=["zukerman", "sold"], choices=["zukerman", "sold", "caixa"])
+    p_atualizar.add_argument("--fontes", nargs="+", default=["zukerman", "sold"],
+                              choices=["zukerman", "sold", "caixa", "bancodobrasil"])
     p_atualizar.add_argument("--ufs", nargs="+", default=["SP"])
     p_atualizar.set_defaults(func=cmd_atualizar)
 

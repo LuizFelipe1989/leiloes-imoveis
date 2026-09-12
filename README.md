@@ -1,7 +1,15 @@
 # Leilões de Imóveis
 
 Ferramenta para buscar oportunidades de leilão de imóveis (Caixa, Zukerman/Zuk,
-Sold), calcular o retorno esperado de cada uma e acompanhar tudo num dashboard.
+Sold, Banco do Brasil), calcular o retorno esperado de cada uma e acompanhar
+tudo num dashboard. Foco atual: imóveis **residenciais e terrenos** (salas e
+imóveis comerciais são filtrados automaticamente).
+
+Dashboard ao vivo: https://luizfelipe1989.github.io/leiloes-imoveis/ — atualizado
+todo dia às 8h por um LaunchAgent local (`run_daily.sh` + `com.luizfelipe.leiloes-imoveis.plist`
+em `~/Library/LaunchAgents`). Não roda na nuvem porque os ambientes de agente
+de nuvem disponíveis bloqueiam acesso à internet fora de uma allowlist de
+infraestrutura (npm/pypi/GitHub) — nenhum dos sites de leilão está nela.
 
 ## Setup
 
@@ -55,13 +63,14 @@ na venda, 8 meses de posse) só para ranquear os imóveis raspados — sempre
 refaça a conta com números reais (reforma orçada, condomínio/IPTU reais,
 matrícula analisada) antes de decidir dar um lance.
 
-## As três fontes
+## As quatro fontes
 
 | Fonte | Como funciona | Observações |
 |---|---|---|
 | **Sold** (`scraper/sold.py`) | API pública da Superbid (`offer-query.superbid.net`), JSON estruturado, sem proteção anti-bot. | Fonte mais rica: já vem com `referenceValue` (avaliação) e `currentMinBid` (lance mínimo real). |
 | **Zukerman/Zuk** (`scraper/zukerman.py`) | HTML estático via `requests` + BeautifulSoup. | Não expõe "valor de avaliação" na listagem — preencher manualmente na análise fina. Pega só a primeira leva de resultados por estado (ver limitações). |
 | **Caixa** (`scraper/caixa.py`) | Baixa o CSV oficial (`Lista_imoveis_<UF>.csv`) publicado pela Caixa. | **Precisa do Playwright com uma janela de navegador de verdade** (`headless=False`) — o domínio usa Radware Bot Manager e bloqueia `requests`/`curl` e até Chromium headless. |
+| **Banco do Brasil** (`scraper/bancodobrasil.py`) | HTML estático do agregador `meuarremateleiloes.com.br` (leilaoimovel.com.br), sem proteção anti-bot. | O BB não tem portal próprio como a Caixa — usa leiloeiros terceirizados. Esse agregador parece ser do mesmo grupo da Priscila Perini/Smart Leilões (assets em `/img/perini/...`). Cobre "Venda Direta" (sem valor de avaliação separado) e "Leilão Extrajudicial" (com desconto). O parâmetro `banco_slug` permite reusar pra outros bancos no mesmo agregador. |
 
 ## Limitações conhecidas (v1)
 
@@ -85,8 +94,10 @@ matrícula analisada) antes de decidir dar um lance.
 
 ## Próximos passos sugeridos
 
-- Agendar `atualizar` + `analisar` + `build_dashboard` como uma tarefa
-  recorrente (ex: diária) para acompanhar novas oportunidades automaticamente.
+- Adicionar outros bancos no `meuarremateleiloes.com.br` reusando
+  `bancodobrasil.buscar(banco_slug="...")` com o slug de cada um (Itaú/Bradesco/
+  Santander já aparecem também via Zukerman e Sold, então tem sobreposição —
+  vale checar duplicidade por endereço antes de crescer aqui).
 - Adicionar mais sites (Resale, Mega Leilões, Superbid direto) seguindo o
   mesmo padrão: um módulo em `scraper/`, retornando `db.store.Listing`.
 - Guardar o histórico de preço/lance por imóvel ao longo do tempo (hoje o
