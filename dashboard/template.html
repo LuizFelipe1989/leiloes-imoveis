@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leilões de Imóveis — Oportunidades</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --surface: #ffffff;
+    --border: #e4e1da;
+    --text: #1c1b19;
+    --text-muted: #6b675f;
+    --accent: #1f6f5c;
+    --accent-soft: #e4f2ee;
+    --good: #1f6f5c;
+    --good-bg: #e4f2ee;
+    --warn: #9a6b1a;
+    --warn-bg: #f7ecd9;
+    --bad: #a13f3f;
+    --bad-bg: #f6e6e6;
+    --mono: "SF Mono", "Menlo", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 32px 24px 80px;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  header { margin-bottom: 28px; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; }
+  .subtitle { color: var(--text-muted); font-size: 13px; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .card .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+  .filters select, .filters input {
+    font-size: 13px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .filters label { font-size: 12px; color: var(--text-muted); margin-right: -4px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  thead th:hover { color: var(--text); }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-soft); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .fonte-tag {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .roi-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .roi-good { background: var(--good-bg); color: var(--good); }
+  .roi-warn { background: var(--warn-bg); color: var(--warn); }
+  .roi-bad { background: var(--bad-bg); color: var(--bad); }
+  .roi-none { color: var(--text-muted); }
+  a.link { color: var(--accent); text-decoration: none; font-size: 12px; }
+  a.link:hover { text-decoration: underline; }
+  .empty { padding: 40px; text-align: center; color: var(--text-muted); }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181a;
+      --surface: #1f2023;
+      --border: #303236;
+      --text: #eceae6;
+      --text-muted: #98958d;
+      --accent: #5fd6b3;
+      --accent-soft: #16332c;
+      --good: #5fd6b3;
+      --good-bg: #16332c;
+      --warn: #e8c07a;
+      --warn-bg: #3a2f16;
+      --bad: #e58a8a;
+      --bad-bg: #3a1f1f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181a;
+    --surface: #1f2023;
+    --border: #303236;
+    --text: #eceae6;
+    --text-muted: #98958d;
+    --accent: #5fd6b3;
+    --accent-soft: #16332c;
+    --good: #5fd6b3;
+    --good-bg: #16332c;
+    --warn: #e8c07a;
+    --warn-bg: #3a2f16;
+    --bad: #e58a8a;
+    --bad-bg: #3a1f1f;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Leilões de Imóveis — Oportunidades</h1>
+    <div class="subtitle" id="subtitle"></div>
+  </header>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="filters">
+    <label>Fonte</label>
+    <select id="f-fonte"><option value="">Todas</option></select>
+    <label>Status</label>
+    <select id="f-status"><option value="">Todos</option></select>
+    <label>ROI mín. a.a.</label>
+    <select id="f-roi">
+      <option value="">Sem filtro</option>
+      <option value="0">Acima de 0%</option>
+      <option value="20">Acima de 20%</option>
+      <option value="30">Acima de 30%</option>
+    </select>
+    <label>Cidade</label>
+    <input type="text" id="f-cidade" placeholder="ex: São Paulo">
+  </div>
+
+  <table id="tabela">
+    <thead>
+      <tr>
+        <th data-key="fonte">Fonte</th>
+        <th data-key="cidade">Cidade</th>
+        <th data-key="bairro">Bairro</th>
+        <th data-key="valor_lance_atual" class="num">Lance</th>
+        <th data-key="valor_avaliacao" class="num">Avaliação</th>
+        <th data-key="desconto_pct" class="num">Desconto</th>
+        <th data-key="roi_anualizado_pct" class="num">ROI a.a.</th>
+        <th data-key="status">Status</th>
+        <th>Link</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">Nenhum imóvel encontrado com esses filtros.</div>
+</div>
+
+<script>
+/*__DADOS__*/
+
+let sortKey = "roi_anualizado_pct";
+let sortDir = -1;
+
+function brl(v) {
+  if (v === null || v === undefined) return "—";
+  return "R$ " + Number(v).toLocaleString("pt-BR", {maximumFractionDigits: 0});
+}
+function pct(v) {
+  if (v === null || v === undefined) return "—";
+  return Number(v).toLocaleString("pt-BR", {maximumFractionDigits: 1}) + "%";
+}
+function roiClass(v) {
+  if (v === null || v === undefined) return "roi-none";
+  if (v >= 20) return "roi-good";
+  if (v >= 0) return "roi-warn";
+  return "roi-bad";
+}
+
+function populateFilters() {
+  const fontes = [...new Set(DADOS.map(d => d.fonte))].sort();
+  const statuses = [...new Set(DADOS.map(d => d.status))].sort();
+  const selFonte = document.getElementById("f-fonte");
+  const selStatus = document.getElementById("f-status");
+  fontes.forEach(f => selFonte.insertAdjacentHTML("beforeend", `<option value="${f}">${f}</option>`));
+  statuses.forEach(s => selStatus.insertAdjacentHTML("beforeend", `<option value="${s}">${s}</option>`));
+}
+
+function renderCards() {
+  const cards = [
+    {label: "Imóveis rastreados", value: RESUMO.total},
+    {label: "Analisados", value: RESUMO.analisados},
+    {label: "Oportunidades (≥20% a.a.)", value: RESUMO.oportunidades},
+    ...Object.entries(RESUMO.por_fonte).map(([fonte, n]) => ({label: fonte, value: n})),
+  ];
+  document.getElementById("cards").innerHTML = cards.map(c =>
+    `<div class="card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`
+  ).join("");
+  document.getElementById("subtitle").textContent = RESUMO.gerado_em
+    ? "Atualizado em " + new Date(RESUMO.gerado_em).toLocaleString("pt-BR")
+    : "";
+}
+
+function currentFilters() {
+  return {
+    fonte: document.getElementById("f-fonte").value,
+    status: document.getElementById("f-status").value,
+    roiMin: document.getElementById("f-roi").value,
+    cidade: document.getElementById("f-cidade").value.trim().toLowerCase(),
+  };
+}
+
+function applyFiltersAndSort() {
+  const f = currentFilters();
+  let rows = DADOS.filter(d => {
+    if (f.fonte && d.fonte !== f.fonte) return false;
+    if (f.status && d.status !== f.status) return false;
+    if (f.roiMin !== "" && !(d.roi_anualizado_pct >= Number(f.roiMin))) return false;
+    if (f.cidade && !(d.cidade || "").toLowerCase().includes(f.cidade)) return false;
+    return true;
+  });
+  rows.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (va === null || va === undefined) va = -Infinity;
+    if (vb === null || vb === undefined) vb = -Infinity;
+    if (typeof va === "string") return sortDir * va.localeCompare(vb);
+    return sortDir * (va - vb);
+  });
+  renderTable(rows);
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById("tbody");
+  document.getElementById("empty").style.display = rows.length ? "none" : "block";
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="fonte-tag">${r.fonte}</span></td>
+      <td>${r.cidade || "—"}</td>
+      <td>${r.bairro || "—"}</td>
+      <td class="num">${brl(r.valor_lance_atual)}</td>
+      <td class="num">${brl(r.valor_avaliacao)}</td>
+      <td class="num">${pct(r.desconto_pct)}</td>
+      <td class="num"><span class="roi-badge ${roiClass(r.roi_anualizado_pct)}">${pct(r.roi_anualizado_pct)}</span></td>
+      <td>${r.status}</td>
+      <td>${r.url ? `<a class="link" href="${r.url}" target="_blank" rel="noopener">ver imóvel →</a>` : "—"}</td>
+    </tr>
+  `).join("");
+}
+
+document.querySelectorAll("thead th[data-key]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.key;
+    if (sortKey === key) { sortDir *= -1; } else { sortKey = key; sortDir = -1; }
+    applyFiltersAndSort();
+  });
+});
+["f-fonte", "f-status", "f-roi"].forEach(id =>
+  document.getElementById(id).addEventListener("change", applyFiltersAndSort)
+);
+document.getElementById("f-cidade").addEventListener("input", applyFiltersAndSort);
+
+populateFilters();
+renderCards();
+applyFiltersAndSort();
+</script>
+</body>
+</html>
