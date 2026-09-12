@@ -2,9 +2,11 @@
 
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from calculator import InvestmentInputs, calcular
 from db import connect, listar_com_ultima_analise
 
 OUTPUT_PATH = Path(__file__).parent.parent / "dashboard.html"
@@ -13,6 +15,18 @@ TEMPLATE_PATH = Path(__file__).parent / "template.html"
 
 def _row_to_dict(row) -> dict:
     d = dict(row)
+    inputs_json = d.pop("inputs_json", None)
+    d["premissas"] = None
+    d["detalhe"] = None
+    if inputs_json:
+        try:
+            inputs_dict = json.loads(inputs_json)
+            inputs = InvestmentInputs(**inputs_dict)
+            resultado = calcular(inputs)
+            d["premissas"] = inputs_dict
+            d["detalhe"] = asdict(resultado)
+        except Exception:
+            pass  # análise antiga/incompatível — mostra só o que já está salvo nas colunas
     return d
 
 

@@ -191,6 +191,7 @@
         <th data-key="roi_anualizado_pct" class="num">ROI a.a.</th>
         <th data-key="status">Status</th>
         <th>Link</th>
+        <th>Cálculo</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -271,10 +272,71 @@ function applyFiltersAndSort() {
   renderTable(rows);
 }
 
+const CAMPO_LABEL = {
+  valor_lance: "Valor do lance", valor_avaliacao: "Valor de avaliação",
+  reforma: "Reforma", ocupado: "Ocupado", custo_desocupacao: "Custo de desocupação",
+  meses_posse: "Meses de posse", condominio_mensal: "Condomínio/mês",
+  iptu_mensal: "IPTU/mês", outros_custos_mensais: "Outros custos/mês",
+  valor_venda_estimado: "Venda estimada", comissao_leiloeiro_pct: "Comissão leiloeiro",
+  itbi_pct: "ITBI", custas_cartorio_pct: "Custas cartório",
+  advogado_due_diligence: "Due diligence", corretagem_venda_pct: "Corretagem na venda",
+  imposto_ganho_capital_pct: "IR ganho de capital",
+  custo_total_aquisicao: "Custo total de aquisição", custo_total_posse: "Custo total de posse",
+  investimento_total: "Investimento total", valor_liquido_venda: "Valor líquido da venda",
+  lucro_bruto: "Lucro bruto", imposto_ganho_capital: "IR sobre o ganho",
+  lucro_liquido: "Lucro líquido", roi_pct: "ROI no período", roi_anualizado_pct: "ROI anualizado",
+};
+const CAMPO_PCT = new Set(["comissao_leiloeiro_pct", "itbi_pct", "custas_cartorio_pct",
+  "corretagem_venda_pct", "imposto_ganho_capital_pct", "roi_pct", "roi_anualizado_pct", "desconto_pct"]);
+const CAMPO_MONETARIO = new Set(["valor_lance", "valor_avaliacao", "reforma", "custo_desocupacao",
+  "condominio_mensal", "iptu_mensal", "outros_custos_mensais", "valor_venda_estimado",
+  "advogado_due_diligence", "custo_total_aquisicao", "custo_total_posse", "investimento_total",
+  "valor_liquido_venda", "lucro_bruto", "imposto_ganho_capital", "lucro_liquido"]);
+
+function formatCampo(chave, valor) {
+  if (typeof valor === "boolean") return valor ? "sim" : "não";
+  if (typeof valor === "number") {
+    if (CAMPO_PCT.has(chave)) return (chave.endsWith("_pct") && !chave.includes("roi") ? pct(valor * 100) : pct(valor));
+    if (CAMPO_MONETARIO.has(chave)) return brl(valor);
+    return valor;
+  }
+  return valor ?? "—";
+}
+
+function detalheHtml(r) {
+  if (!r.premissas || !r.detalhe) {
+    return `<div style="padding:14px 18px;color:var(--text-muted);font-size:12.5px;">Ainda sem análise (triagem automática não conseguiu calcular — falta lance ou avaliação).</div>`;
+  }
+  const grupo = (titulo, obj, chaves) => `
+    <div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:6px;">${titulo}</div>
+      ${chaves.filter(k => obj[k] !== undefined).map(k => `
+        <div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;font-size:12.5px;">
+          <span style="color:var(--text-muted);">${CAMPO_LABEL[k] || k}</span>
+          <span style="font-variant-numeric:tabular-nums;">${formatCampo(k, obj[k])}</span>
+        </div>
+      `).join("")}
+    </div>`;
+  return `
+    <div style="padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;">
+      ${grupo("Premissas usadas", r.premissas, ["valor_lance","valor_avaliacao","reforma","ocupado",
+        "custo_desocupacao","meses_posse","condominio_mensal","iptu_mensal","outros_custos_mensais",
+        "valor_venda_estimado","comissao_leiloeiro_pct","itbi_pct","custas_cartorio_pct",
+        "advogado_due_diligence","corretagem_venda_pct","imposto_ganho_capital_pct"])}
+      ${grupo("Resultado do cálculo", r.detalhe, ["custo_total_aquisicao","custo_total_posse",
+        "investimento_total","valor_liquido_venda","lucro_bruto","imposto_ganho_capital",
+        "lucro_liquido","roi_pct","roi_anualizado_pct"])}
+    </div>
+    <div style="padding:0 20px 14px;font-size:11.5px;color:var(--text-muted);">
+      Essa é uma triagem automática com premissas genéricas — refaça a conta com números reais
+      (reforma orçada, condomínio/IPTU reais, valor de venda pesquisado) antes de decidir dar um lance.
+    </div>`;
+}
+
 function renderTable(rows) {
   const tbody = document.getElementById("tbody");
   document.getElementById("empty").style.display = rows.length ? "none" : "block";
-  tbody.innerHTML = rows.map(r => `
+  tbody.innerHTML = rows.map((r, i) => `
     <tr>
       <td><span class="fonte-tag">${r.fonte}</span></td>
       <td>${r.cidade || "—"}</td>
@@ -285,8 +347,18 @@ function renderTable(rows) {
       <td class="num"><span class="roi-badge ${roiClass(r.roi_anualizado_pct)}">${pct(r.roi_anualizado_pct)}</span></td>
       <td>${r.status}</td>
       <td>${r.url ? `<a class="link" href="${r.url}" target="_blank" rel="noopener">ver imóvel →</a>` : "—"}</td>
+      <td><a class="link toggle-detalhe" href="#" data-idx="${i}">ver cálculo ▾</a></td>
     </tr>
+    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="10" style="padding:0;background:var(--accent-soft);">${detalheHtml(r)}</td></tr>
   `).join("");
+  tbody.querySelectorAll(".toggle-detalhe").forEach(a => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const row = document.getElementById("detalhe-" + a.dataset.idx);
+      row.hidden = !row.hidden;
+      a.textContent = row.hidden ? "ver cálculo ▾" : "esconder ▴";
+    });
+  });
 }
 
 document.querySelectorAll("thead th[data-key]").forEach(th => {

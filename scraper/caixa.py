@@ -73,17 +73,24 @@ def _parse_csv(raw_bytes: bytes) -> list[dict]:
     return rows
 
 
+def _tipo_da_descricao(descricao: str) -> str:
+    # "Casa, 130.00 de área total, ..." -> "Casa"; "Terreno Comercial, 500 m2" -> mantém como está
+    return descricao.split(",")[0].strip() if descricao else ""
+
+
 def _row_to_listing(row: dict) -> Optional[Listing]:
     id_imovel = row.get("N° do imóvel", "").strip()
     if not id_imovel:
         return None
+    descricao = row.get("Descrição", "")
     return Listing(
         fonte="caixa",
         id_no_site=id_imovel,
-        titulo=row.get("Descrição", "")[:200],
+        titulo=descricao[:200],
         endereco=row.get("Endereço", "").strip(),
         cidade=row.get("Cidade", "").strip(),
         estado=row.get("UF", "").strip(),
+        tipo_imovel=_tipo_da_descricao(descricao),
         valor_avaliacao=_to_float(row.get("Valor de avaliação", "")),
         valor_lance_atual=_to_float(row.get("Preço", "")),
         praca="",

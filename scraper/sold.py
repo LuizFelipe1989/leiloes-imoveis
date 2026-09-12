@@ -84,7 +84,9 @@ def _to_listing(offer: dict) -> Listing:
         bairro=bairro,
         cidade=cidade,
         estado=estado.strip(),
-        tipo_imovel=offer.get("product", {}).get("productType", {}).get("description", ""),
+        # a categoria (Imóveis Residenciais / Comerciais / Rurais / Terrenos e Lotes)
+        # é bem mais útil pra filtrar do que o productType genérico ("Imóveis" pra tudo)
+        tipo_imovel=(offer.get("product", {}).get("subCategory", {}) or {}).get("category", {}).get("description", ""),
         area_m2=area,
         # "price" (== referenceValue/directSaleValue) é o preço de referência/venda direta;
         # o valor que de fato se paga arrematando no leilão é o lance mínimo atual.

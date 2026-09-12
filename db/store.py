@@ -117,7 +117,7 @@ def listar_com_ultima_analise(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         """
         SELECT i.*,
                a.desconto_pct, a.investimento_total, a.lucro_liquido, a.roi_pct, a.roi_anualizado_pct,
-               a.criado_em AS analise_criado_em
+               a.inputs_json, a.criado_em AS analise_criado_em
         FROM imoveis i
         LEFT JOIN (
             SELECT a1.*
