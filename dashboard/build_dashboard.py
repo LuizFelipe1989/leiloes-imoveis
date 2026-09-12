@@ -12,6 +12,16 @@ from scraper.filters import categoria_imovel
 
 OUTPUT_PATH = Path(__file__).parent.parent / "dashboard.html"
 TEMPLATE_PATH = Path(__file__).parent / "template.html"
+FONTS_DIR = Path(__file__).parent.parent / "fonts"
+
+FONT_PLACEHOLDERS = [
+    ("__FONT_SERIF_600__", "source-serif-600"),
+    ("__FONT_SANS_400__", "plex-sans-400"),
+    ("__FONT_SANS_500__", "plex-sans-500"),
+    ("__FONT_SANS_600__", "plex-sans-600"),
+    ("__FONT_MONO_400__", "plex-mono-400"),
+    ("__FONT_MONO_500__", "plex-mono-500"),
+]
 
 
 def _row_to_dict(row) -> dict:
@@ -40,18 +50,23 @@ def build():
     analisados = [r for r in rows if r.get("roi_anualizado_pct") is not None]
     oportunidades = [r for r in analisados if (r.get("roi_anualizado_pct") or 0) >= 20]
     por_fonte = {}
+    por_categoria = {}
     for r in rows:
         por_fonte[r["fonte"]] = por_fonte.get(r["fonte"], 0) + 1
+        por_categoria[r["categoria"]] = por_categoria.get(r["categoria"], 0) + 1
 
     resumo = {
         "total": total,
         "analisados": len(analisados),
         "oportunidades": len(oportunidades),
         "por_fonte": por_fonte,
-        "gerado_em": rows[0]["ultima_atualizacao"] if rows else None,
+        "por_categoria": por_categoria,
+        "gerado_em": max((r["ultima_atualizacao"] for r in rows), default=None),
     }
 
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    for placeholder, fname in FONT_PLACEHOLDERS:
+        template = template.replace(placeholder, (FONTS_DIR / f"{fname}.b64").read_text().strip())
     html = template.replace(
         "/*__DADOS__*/",
         f"const DADOS = {json.dumps(rows, ensure_ascii=False)};\nconst RESUMO = {json.dumps(resumo, ensure_ascii=False)};",

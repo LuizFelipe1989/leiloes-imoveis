@@ -5,201 +5,239 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Leilões de Imóveis — Oportunidades</title>
 <style>
-  :root {
-    --bg: #f6f5f2;
-    --surface: #ffffff;
-    --border: #e4e1da;
-    --text: #1c1b19;
-    --text-muted: #6b675f;
-    --accent: #1f6f5c;
-    --accent-soft: #e4f2ee;
-    --good: #1f6f5c;
-    --good-bg: #e4f2ee;
-    --warn: #9a6b1a;
-    --warn-bg: #f7ecd9;
-    --bad: #a13f3f;
-    --bad-bg: #f6e6e6;
-    --mono: "SF Mono", "Menlo", monospace;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    padding: 32px 24px 80px;
-  }
-  .wrap { max-width: 1200px; margin: 0 auto; }
-  header { margin-bottom: 28px; }
-  h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; }
-  .subtitle { color: var(--text-muted); font-size: 13px; }
+@font-face { font-family: 'Source Serif Dash'; font-weight: 600; font-style: normal; font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_SERIF_600__) format('woff2'); }
+@font-face { font-family: 'Plex Sans Dash'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_SANS_400__) format('woff2'); }
+@font-face { font-family: 'Plex Sans Dash'; font-weight: 500; font-style: normal; font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_SANS_500__) format('woff2'); }
+@font-face { font-family: 'Plex Sans Dash'; font-weight: 600; font-style: normal; font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_SANS_600__) format('woff2'); }
+@font-face { font-family: 'Plex Mono Dash'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_MONO_400__) format('woff2'); }
+@font-face { font-family: 'Plex Mono Dash'; font-weight: 500; font-style: normal; font-display: swap;
+  src: url(data:font/woff2;base64,__FONT_MONO_500__) format('woff2'); }
 
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-    margin-bottom: 24px;
+:root {
+  color-scheme: light;
+  --page: #F9F5EC;
+  --surface: #FFFFFF;
+  --ink: #34302A;
+  --ink-secondary: #79705F;
+  --ink-muted: #ACA290;
+  --gridline: #F0E9DA;
+  --border: rgba(52,48,42,0.07);
+  --accent: #12967C;
+  --accent-soft: #DDF1EA;
+  --good: #1E9E52;
+  --good-soft: #DFF3E5;
+  --warning: #E0910A;
+  --warning-soft: #FBEDD3;
+  --critical: #E0432B;
+  --critical-soft: #FBE0DA;
+  --neutral-track: #F0E9DA;
+  --future: #6D86C4;
+  --shadow: 0 1px 2px rgba(52,48,42,0.03), 0 6px 20px rgba(52,48,42,0.03);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: light;
+    --page: #EEF1F6; --surface: #FFFFFF;
+    --ink: #1E2530; --ink-secondary: #59616F; --ink-muted: #8A92A0;
+    --gridline: #E2E7EE; --border: rgba(30,37,48,0.08);
+    --neutral-track: #E2E7EE; --future: #4E6BB8;
+    --shadow: 0 1px 2px rgba(30,37,48,0.06), 0 6px 20px rgba(30,37,48,0.05);
   }
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 18px;
-  }
-  .card .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .card .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+}
+:root[data-theme="dark"] {
+  color-scheme: light;
+  --page: #EEF1F6; --surface: #FFFFFF;
+  --ink: #1E2530; --ink-secondary: #59616F; --ink-muted: #8A92A0;
+  --gridline: #E2E7EE; --border: rgba(30,37,48,0.08);
+  --neutral-track: #E2E7EE; --future: #4E6BB8;
+}
 
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
-    align-items: center;
-  }
-  .filters select, .filters input {
-    font-size: 13px;
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-  }
-  .filters label { font-size: 12px; color: var(--text-muted); margin-right: -4px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: 'Plex Sans Dash', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1280px; margin: 0 auto; padding: 40px 28px 64px; }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    font-size: 13px;
-  }
-  thead th {
-    text-align: left;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  thead th:hover { color: var(--text); }
-  tbody td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    vertical-align: top;
-  }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: var(--accent-soft); }
-  .num { font-variant-numeric: tabular-nums; text-align: right; }
-  .fonte-tag {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 2px 6px;
-    border-radius: 5px;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .roi-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-  }
-  .roi-good { background: var(--good-bg); color: var(--good); }
-  .roi-warn { background: var(--warn-bg); color: var(--warn); }
-  .roi-bad { background: var(--bad-bg); color: var(--bad); }
-  .roi-none { color: var(--text-muted); }
-  a.link { color: var(--accent); text-decoration: none; font-size: 12px; }
-  a.link:hover { text-decoration: underline; }
-  .empty { padding: 40px; text-align: center; color: var(--text-muted); }
+.masthead { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 28px; border-bottom: 1px solid var(--gridline); padding-bottom: 20px; flex-wrap: wrap; }
+.masthead h1 { font-family: 'Source Serif Dash', Georgia, serif; font-weight: 600; font-size: 29px; margin: 0 0 4px; text-wrap: balance; letter-spacing: -0.01em; }
+.masthead .sub { color: var(--ink-secondary); font-size: 13.5px; max-width: 640px; }
+.masthead .meta { text-align: right; color: var(--ink-muted); font-size: 12px; font-family: 'Plex Mono Dash', monospace; }
+.masthead .meta div + div { margin-top: 2px; }
+.masthead .meta a { color: var(--accent); text-decoration: none; }
 
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #17181a;
-      --surface: #1f2023;
-      --border: #303236;
-      --text: #eceae6;
-      --text-muted: #98958d;
-      --accent: #5fd6b3;
-      --accent-soft: #16332c;
-      --good: #5fd6b3;
-      --good-bg: #16332c;
-      --warn: #e8c07a;
-      --warn-bg: #3a2f16;
-      --bad: #e58a8a;
-      --bad-bg: #3a1f1f;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #17181a;
-    --surface: #1f2023;
-    --border: #303236;
-    --text: #eceae6;
-    --text-muted: #98958d;
-    --accent: #5fd6b3;
-    --accent-soft: #16332c;
-    --good: #5fd6b3;
-    --good-bg: #16332c;
-    --warn: #e8c07a;
-    --warn-bg: #3a2f16;
-    --bad: #e58a8a;
-    --bad-bg: #3a1f1f;
-  }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; font-weight: 600; color: var(--ink-muted); margin: 26px 0 10px; }
+.eyebrow:first-of-type { margin-top: 0; }
+
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px 18px; box-shadow: var(--shadow); }
+.panel + .panel { margin-top: 16px; }
+.panel h2 { font-family: 'Source Serif Dash', Georgia, serif; font-weight: 600; font-size: 17px; margin: 0 0 2px; }
+.panel .panel-sub { font-size: 12.5px; color: var(--ink-secondary); margin-bottom: 14px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow); }
+.kpi-tile .label { font-size: 11.5px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.kpi-tile .value { font-family: 'Plex Mono Dash', monospace; font-size: 25px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--accent); }
+.kpi-tile .delta { font-size: 12px; font-family: 'Plex Mono Dash', monospace; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 4px; width: fit-content; padding: 2px 7px; border-radius: 20px; font-weight: 500; }
+.kpi-tile .delta.good { color: var(--good); background: var(--good-soft); }
+.kpi-tile .delta.critical { color: var(--critical); background: var(--critical-soft); }
+.kpi-tile .delta.neutral { color: var(--ink-secondary); background: var(--neutral-track); }
+.kpi-tile .foot { font-size: 11px; color: var(--ink-muted); margin-top: auto; }
+
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.stat-tile { padding: 11px 12px; border-radius: 10px; background: var(--page); display: flex; flex-direction: column; gap: 3px; }
+.stat-tile .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; }
+.stat-tile .value { font-family: 'Plex Mono Dash', monospace; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat-tiles + .stat-tiles { margin-top: 10px; }
+
+.filters-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
+.filter-field { display: flex; flex-direction: column; gap: 4px; }
+.filter-field label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; }
+.month-select, .text-input { font-family: 'Plex Sans Dash', sans-serif; font-size: 12.5px; color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+.text-input::placeholder { color: var(--ink-muted); }
+
+table.detail-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.detail-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; padding: 0 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; cursor: pointer; }
+table.detail-table th:hover { color: var(--ink-secondary); }
+table.detail-table th.num, table.detail-table td.num { text-align: right; font-family: 'Plex Mono Dash', monospace; font-variant-numeric: tabular-nums; }
+table.detail-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); vertical-align: top; }
+table.detail-table tbody tr:hover > td { background: var(--page); }
+table.detail-table tr.detail-row:hover > td { background: none; }
+
+.fonte-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 20px; background: var(--accent-soft); color: var(--accent); font-weight: 600; white-space: nowrap; }
+
+.status-badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+.status-badge.novo { color: var(--future); background: var(--neutral-track); }
+.status-badge.analisado { color: var(--accent); background: var(--accent-soft); }
+.status-badge.arrematado, .status-badge.vendido { color: var(--good); background: var(--good-soft); }
+.status-badge.descartado { color: var(--ink-muted); background: var(--gridline); }
+
+.roi-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-weight: 650; font-variant-numeric: tabular-nums; font-family: 'Plex Mono Dash', monospace; font-size: 12px; }
+.roi-good { background: var(--good-soft); color: var(--good); }
+.roi-warn { background: var(--warning-soft); color: var(--warning); }
+.roi-bad { background: var(--critical-soft); color: var(--critical); }
+.roi-none { color: var(--ink-muted); }
+
+a.link { color: var(--accent); text-decoration: none; font-size: 12px; font-weight: 500; }
+a.link:hover { text-decoration: underline; }
+a.toggle-detalhe { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+a.toggle-detalhe::before { content: '▸'; font-size: 9px; transition: transform 0.15s; }
+a.toggle-detalhe.open::before { transform: rotate(90deg); }
+
+.detalhe-grid { padding: 14px 20px; display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 20px; }
+.detalhe-group .titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; margin-bottom: 6px; }
+.detalhe-linha { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; font-size: 12.5px; }
+.detalhe-linha .k { color: var(--ink-secondary); }
+.detalhe-linha .v { font-family: 'Plex Mono Dash', monospace; font-variant-numeric: tabular-nums; }
+.detalhe-nota { padding: 0 20px 14px; font-size: 11.5px; color: var(--ink-muted); }
+.detalhe-vazio { padding: 14px 20px; color: var(--ink-muted); font-size: 12.5px; }
+
+.alert-empty { color: var(--ink-muted); font-size: 13px; padding: 30px 0; text-align: center; }
+
+.footnotes { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--gridline); font-size: 11.5px; color: var(--ink-muted); display: flex; flex-direction: column; gap: 4px; }
+.footnotes b { color: var(--ink-secondary); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+.wide-scroll { overflow-x: auto; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>Leilões de Imóveis — Oportunidades</h1>
-    <div class="subtitle" id="subtitle"></div>
+  <header class="masthead">
+    <div>
+      <h1>Leilões de Imóveis — Oportunidades</h1>
+      <div class="sub">Zukerman, Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento</div>
+    </div>
+    <div class="meta">
+      <div id="meta-atualizado">—</div>
+      <div id="meta-repo"><a href="https://github.com/LuizFelipe1989/leiloes-imoveis" target="_blank" rel="noopener">código-fonte ↗</a></div>
+    </div>
   </header>
 
-  <div class="cards" id="cards"></div>
+  <div class="eyebrow">Resumo</div>
+  <div class="kpi-row" id="kpi-row"></div>
 
-  <div class="filters">
-    <label>Fonte</label>
-    <select id="f-fonte"><option value="">Todas</option></select>
-    <label>Categoria</label>
-    <select id="f-categoria"><option value="">Todas</option></select>
-    <label>Status</label>
-    <select id="f-status"><option value="">Todos</option></select>
-    <label>ROI mín. a.a.</label>
-    <select id="f-roi">
-      <option value="">Sem filtro</option>
-      <option value="0">Acima de 0%</option>
-      <option value="20">Acima de 20%</option>
-      <option value="30">Acima de 30%</option>
-    </select>
-    <label>Cidade</label>
-    <input type="text" id="f-cidade" placeholder="ex: São Paulo">
+  <section class="panel">
+    <h2>Por fonte e categoria</h2>
+    <div class="panel-sub">Distribuição de todos os imóveis rastreados (exceto descartados)</div>
+    <div class="stat-tiles" id="fonte-tiles"></div>
+    <div class="stat-tiles" id="categoria-tiles"></div>
+  </section>
+
+  <div class="eyebrow">Filtros</div>
+  <section class="panel">
+    <div class="filters-row">
+      <div class="filter-field">
+        <label>Fonte</label>
+        <select class="month-select" id="f-fonte"><option value="">Todas</option></select>
+      </div>
+      <div class="filter-field">
+        <label>Categoria</label>
+        <select class="month-select" id="f-categoria"><option value="">Todas</option></select>
+      </div>
+      <div class="filter-field">
+        <label>Status</label>
+        <select class="month-select" id="f-status"><option value="">Todos</option></select>
+      </div>
+      <div class="filter-field">
+        <label>ROI mín. a.a.</label>
+        <select class="month-select" id="f-roi">
+          <option value="">Sem filtro</option>
+          <option value="0">Acima de 0%</option>
+          <option value="20">Acima de 20%</option>
+          <option value="30">Acima de 30%</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label>Cidade</label>
+        <input type="text" class="text-input" id="f-cidade" placeholder="ex: São Paulo">
+      </div>
+    </div>
+  </section>
+
+  <div class="eyebrow">Oportunidades</div>
+  <section class="panel">
+    <div class="panel-sub" id="tabela-sub">—</div>
+    <div class="wide-scroll">
+      <table class="detail-table" id="tabela">
+        <thead>
+          <tr>
+            <th data-key="fonte">Fonte</th>
+            <th data-key="categoria">Categoria</th>
+            <th data-key="cidade">Cidade</th>
+            <th data-key="bairro">Bairro</th>
+            <th data-key="valor_lance_atual" class="num">Lance</th>
+            <th data-key="valor_avaliacao" class="num">Avaliação</th>
+            <th data-key="desconto_pct" class="num">Desconto</th>
+            <th data-key="roi_anualizado_pct" class="num">ROI a.a.</th>
+            <th data-key="status">Status</th>
+            <th>Link</th>
+            <th>Cálculo</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="alert-empty" id="empty" style="display:none">Nenhum imóvel encontrado com esses filtros.</div>
+  </section>
+
+  <div class="footnotes">
+    <div><b>Metodologia:</b> a triagem automática usa premissas genéricas (reforma ≈ 8% da avaliação, 8 meses de posse, corretagem de 6% na venda, IR de 15% sobre o ganho) — clique em "ver cálculo" em cada linha pra ver exatamente o que foi considerado, e refaça a conta com números reais antes de decidir dar um lance.</div>
+    <div><b>Fontes:</b> Zukerman/Zuk (portalzuk.com.br), Sold (sold.com.br via API Superbid), Caixa (venda-imoveis.caixa.gov.br), Banco do Brasil (via meuarremateleiloes.com.br).</div>
   </div>
-
-  <table id="tabela">
-    <thead>
-      <tr>
-        <th data-key="fonte">Fonte</th>
-        <th data-key="categoria">Categoria</th>
-        <th data-key="cidade">Cidade</th>
-        <th data-key="bairro">Bairro</th>
-        <th data-key="valor_lance_atual" class="num">Lance</th>
-        <th data-key="valor_avaliacao" class="num">Avaliação</th>
-        <th data-key="desconto_pct" class="num">Desconto</th>
-        <th data-key="roi_anualizado_pct" class="num">ROI a.a.</th>
-        <th data-key="status">Status</th>
-        <th>Link</th>
-        <th>Cálculo</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
-  <div class="empty" id="empty" style="display:none">Nenhum imóvel encontrado com esses filtros.</div>
 </div>
 
 <script>
@@ -222,6 +260,34 @@ function roiClass(v) {
   if (v >= 0) return "roi-warn";
   return "roi-bad";
 }
+const STATUS_LABEL = {novo: "novo", analisado: "analisado", descartado: "descartado", arrematado: "arrematado", vendido: "vendido"};
+
+function statTile(label, value) {
+  return `<div class="stat-tile"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+}
+
+function renderKpisEResumo() {
+  document.getElementById("kpi-row").innerHTML = [
+    {label: "Imóveis rastreados", value: RESUMO.total},
+    {label: "Analisados", value: RESUMO.analisados, deltaText: RESUMO.total ? pct(RESUMO.analisados / RESUMO.total * 100) + " do total" : null, deltaClass: "neutral"},
+    {label: "Oportunidades (≥20% a.a.)", value: RESUMO.oportunidades, deltaText: RESUMO.analisados ? pct(RESUMO.oportunidades / RESUMO.analisados * 100) + " dos analisados" : null, deltaClass: "good"},
+  ].map(k => `
+    <div class="kpi-tile">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      ${k.deltaText ? `<span class="delta ${k.deltaClass}">${k.deltaText}</span>` : ""}
+    </div>
+  `).join("");
+
+  document.getElementById("fonte-tiles").innerHTML = Object.entries(RESUMO.por_fonte)
+    .sort((a, b) => b[1] - a[1]).map(([k, n]) => statTile(k, n)).join("");
+  document.getElementById("categoria-tiles").innerHTML = Object.entries(RESUMO.por_categoria)
+    .sort((a, b) => b[1] - a[1]).map(([k, n]) => statTile(k, n)).join("");
+
+  document.getElementById("meta-atualizado").textContent = RESUMO.gerado_em
+    ? "Atualizado em " + new Date(RESUMO.gerado_em).toLocaleString("pt-BR")
+    : "";
+}
 
 function populateFilters() {
   const fontes = [...new Set(DADOS.map(d => d.fonte))].sort();
@@ -232,22 +298,7 @@ function populateFilters() {
   const selStatus = document.getElementById("f-status");
   fontes.forEach(f => selFonte.insertAdjacentHTML("beforeend", `<option value="${f}">${f}</option>`));
   categorias.forEach(c => selCategoria.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
-  statuses.forEach(s => selStatus.insertAdjacentHTML("beforeend", `<option value="${s}">${s}</option>`));
-}
-
-function renderCards() {
-  const cards = [
-    {label: "Imóveis rastreados", value: RESUMO.total},
-    {label: "Analisados", value: RESUMO.analisados},
-    {label: "Oportunidades (≥20% a.a.)", value: RESUMO.oportunidades},
-    ...Object.entries(RESUMO.por_fonte).map(([fonte, n]) => ({label: fonte, value: n})),
-  ];
-  document.getElementById("cards").innerHTML = cards.map(c =>
-    `<div class="card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`
-  ).join("");
-  document.getElementById("subtitle").textContent = RESUMO.gerado_em
-    ? "Atualizado em " + new Date(RESUMO.gerado_em).toLocaleString("pt-BR")
-    : "";
+  statuses.forEach(s => selStatus.insertAdjacentHTML("beforeend", `<option value="${s}">${STATUS_LABEL[s] || s}</option>`));
 }
 
 function currentFilters() {
@@ -277,6 +328,7 @@ function applyFiltersAndSort() {
     if (typeof va === "string") return sortDir * va.localeCompare(vb);
     return sortDir * (va - vb);
   });
+  document.getElementById("tabela-sub").textContent = `${rows.length} imóvel(is) — ordenado por ${sortKey}, clique numa coluna pra reordenar`;
   renderTable(rows);
 }
 
@@ -311,31 +363,34 @@ function formatCampo(chave, valor) {
   return valor ?? "—";
 }
 
-function detalheHtml(r) {
-  if (!r.premissas || !r.detalhe) {
-    return `<div style="padding:14px 18px;color:var(--text-muted);font-size:12.5px;">Ainda sem análise (triagem automática não conseguiu calcular — falta lance ou avaliação).</div>`;
-  }
-  const grupo = (titulo, obj, chaves) => `
-    <div>
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:6px;">${titulo}</div>
+function grupoDetalhe(titulo, obj, chaves) {
+  return `
+    <div class="detalhe-group">
+      <div class="titulo">${titulo}</div>
       ${chaves.filter(k => obj[k] !== undefined).map(k => `
-        <div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;font-size:12.5px;">
-          <span style="color:var(--text-muted);">${CAMPO_LABEL[k] || k}</span>
-          <span style="font-variant-numeric:tabular-nums;">${formatCampo(k, obj[k])}</span>
+        <div class="detalhe-linha">
+          <span class="k">${CAMPO_LABEL[k] || k}</span>
+          <span class="v">${formatCampo(k, obj[k])}</span>
         </div>
       `).join("")}
     </div>`;
+}
+
+function detalheHtml(r) {
+  if (!r.premissas || !r.detalhe) {
+    return `<div class="detalhe-vazio">Ainda sem análise (triagem automática não conseguiu calcular — falta lance ou avaliação).</div>`;
+  }
   return `
-    <div style="padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;">
-      ${grupo("Premissas usadas", r.premissas, ["valor_lance","valor_avaliacao","reforma","ocupado",
+    <div class="detalhe-grid">
+      ${grupoDetalhe("Premissas usadas", r.premissas, ["valor_lance","valor_avaliacao","reforma","ocupado",
         "custo_desocupacao","meses_posse","condominio_mensal","iptu_mensal","outros_custos_mensais",
         "valor_venda_estimado","comissao_leiloeiro_pct","itbi_pct","custas_cartorio_pct",
         "advogado_due_diligence","corretagem_venda_pct","imposto_ganho_capital_pct"])}
-      ${grupo("Resultado do cálculo", r.detalhe, ["custo_total_aquisicao","custo_total_posse",
+      ${grupoDetalhe("Resultado do cálculo", r.detalhe, ["custo_total_aquisicao","custo_total_posse",
         "investimento_total","valor_liquido_venda","lucro_bruto","imposto_ganho_capital",
         "lucro_liquido","roi_pct","roi_anualizado_pct"])}
     </div>
-    <div style="padding:0 20px 14px;font-size:11.5px;color:var(--text-muted);">
+    <div class="detalhe-nota">
       Essa é uma triagem automática com premissas genéricas — refaça a conta com números reais
       (reforma orçada, condomínio/IPTU reais, valor de venda pesquisado) antes de decidir dar um lance.
     </div>`;
@@ -354,18 +409,19 @@ function renderTable(rows) {
       <td class="num">${brl(r.valor_avaliacao)}</td>
       <td class="num">${pct(r.desconto_pct)}</td>
       <td class="num"><span class="roi-badge ${roiClass(r.roi_anualizado_pct)}">${pct(r.roi_anualizado_pct)}</span></td>
-      <td>${r.status}</td>
+      <td><span class="status-badge ${r.status}">${STATUS_LABEL[r.status] || r.status}</span></td>
       <td>${r.url ? `<a class="link" href="${r.url}" target="_blank" rel="noopener">ver imóvel →</a>` : "—"}</td>
-      <td><a class="link toggle-detalhe" href="#" data-idx="${i}">ver cálculo ▾</a></td>
+      <td><a class="link toggle-detalhe" href="#" data-idx="${i}">ver cálculo</a></td>
     </tr>
-    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="11" style="padding:0;background:var(--accent-soft);">${detalheHtml(r)}</td></tr>
+    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="11" style="padding:0;background:var(--page);">${detalheHtml(r)}</td></tr>
   `).join("");
   tbody.querySelectorAll(".toggle-detalhe").forEach(a => {
     a.addEventListener("click", (e) => {
       e.preventDefault();
       const row = document.getElementById("detalhe-" + a.dataset.idx);
       row.hidden = !row.hidden;
-      a.textContent = row.hidden ? "ver cálculo ▾" : "esconder ▴";
+      a.classList.toggle("open", !row.hidden);
+      a.textContent = row.hidden ? "ver cálculo" : "esconder";
     });
   });
 }
@@ -383,7 +439,7 @@ document.querySelectorAll("thead th[data-key]").forEach(th => {
 document.getElementById("f-cidade").addEventListener("input", applyFiltersAndSort);
 
 populateFilters();
-renderCards();
+renderKpisEResumo();
 applyFiltersAndSort();
 </script>
 </body>
