@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from calculator import InvestmentInputs, calcular
 from db import connect, listar_com_ultima_analise
+from scraper.filters import categoria_imovel
 
 OUTPUT_PATH = Path(__file__).parent.parent / "dashboard.html"
 TEMPLATE_PATH = Path(__file__).parent / "template.html"
@@ -15,6 +16,7 @@ TEMPLATE_PATH = Path(__file__).parent / "template.html"
 
 def _row_to_dict(row) -> dict:
     d = dict(row)
+    d["categoria"] = categoria_imovel(d.get("tipo_imovel"))
     inputs_json = d.pop("inputs_json", None)
     d["premissas"] = None
     d["detalhe"] = None
