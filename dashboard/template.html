@@ -68,7 +68,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-.wrap { max-width: 1280px; margin: 0 auto; padding: 40px 28px 64px; }
+.wrap { max-width: 1560px; margin: 0 auto; padding: 40px 28px 64px; }
 
 .masthead { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 28px; border-bottom: 1px solid var(--gridline); padding-bottom: 20px; flex-wrap: wrap; }
 .masthead h1 { font-family: 'Source Serif Dash', Georgia, serif; font-weight: 600; font-size: 29px; margin: 0 0 4px; text-wrap: balance; letter-spacing: -0.01em; }
@@ -111,7 +111,8 @@ table.detail-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
 table.detail-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; padding: 0 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; cursor: pointer; }
 table.detail-table th:hover { color: var(--ink-secondary); }
 table.detail-table th.num, table.detail-table td.num { text-align: right; font-family: 'Plex Mono Dash', monospace; font-variant-numeric: tabular-nums; }
-table.detail-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); vertical-align: top; }
+table.detail-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+table.detail-table tr.detail-row td { white-space: normal; }
 table.detail-table tbody tr:hover > td { background: var(--page); }
 table.detail-table tr.detail-row:hover > td { background: none; }
 

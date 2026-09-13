@@ -119,7 +119,7 @@ def main():
     p_atualizar = sub.add_parser("atualizar", help="Busca imóveis nos sites configurados")
     p_atualizar.add_argument("--fontes", nargs="+", default=["zukerman", "sold"],
                               choices=["zukerman", "sold", "caixa", "bancodobrasil"])
-    p_atualizar.add_argument("--ufs", nargs="+", default=["SP"])
+    p_atualizar.add_argument("--ufs", nargs="+", default=["SP", "MG"])
     p_atualizar.set_defaults(func=cmd_atualizar)
 
     p_analisar = sub.add_parser("analisar", help="Roda a triagem automática (premissas padrão) nos imóveis novos")

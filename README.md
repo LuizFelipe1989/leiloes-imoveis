@@ -23,11 +23,12 @@ python3 -m venv .venv
 
 ```bash
 # Busca imóveis nas fontes configuradas e salva no banco (data/leiloes.db)
-.venv/bin/python cli.py atualizar --fontes zukerman sold --ufs SP
+# --ufs default é SP e MG (nosso foco); passe outras UFs se quiser ampliar
+.venv/bin/python cli.py atualizar --fontes zukerman sold --ufs SP MG
 
 # A Caixa precisa de uma janela de navegador real (não funciona headless nem
 # em servidor sem display — veja "Limitações" abaixo)
-.venv/bin/python cli.py atualizar --fontes caixa --ufs SP
+.venv/bin/python cli.py atualizar --fontes caixa --ufs SP MG
 
 # Roda uma triagem automática (premissas padrão) nos imóveis novos
 .venv/bin/python cli.py analisar

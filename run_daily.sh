@@ -14,7 +14,7 @@ mkdir -p "$DIR/logs"
 {
   echo "=== Início: $(date) ==="
 
-  "$DIR/.venv/bin/python" cli.py atualizar --fontes zukerman sold caixa bancodobrasil --ufs SP
+  "$DIR/.venv/bin/python" cli.py atualizar --fontes zukerman sold caixa bancodobrasil --ufs SP MG
   "$DIR/.venv/bin/python" cli.py analisar
   "$DIR/.venv/bin/python" dashboard/build_dashboard.py
 
