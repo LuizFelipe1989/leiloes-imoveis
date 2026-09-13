@@ -88,6 +88,7 @@ def _row_to_listing(row: dict) -> Optional[Listing]:
         id_no_site=id_imovel,
         titulo=descricao[:200],
         endereco=row.get("Endereço", "").strip(),
+        bairro=row.get("Bairro", "").strip(),
         cidade=row.get("Cidade", "").strip(),
         estado=row.get("UF", "").strip(),
         tipo_imovel=_tipo_da_descricao(descricao),

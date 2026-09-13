@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from db.store import Listing
+from scraper.enderecos import extrair_bairro
 
 BASE_URL = "https://www.meuarremateleiloes.com.br"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; leiloes-imoveis-bot/1.0)"}
@@ -57,34 +58,6 @@ def _split_titulo(titulo: str) -> tuple[str, str, str]:
     return tipo, cidade, uf
 
 
-def _endereco_bairro(endereco_completo: str, cidade: str) -> tuple[str, str]:
-    # o formato varia bastante entre leilão extrajudicial ("rua, nº, bairro, cidade, uf, cep")
-    # e venda direta ("rua, nº - bairro - cidade/uf") — em vez de tentar casar um único
-    # formato, vai descartando do final os pedaços que claramente não são bairro/rua
-    # (CEP, UF isolada, "cidade/uf" colado, ou a própria cidade já extraída do título).
-    partes = [p.strip() for p in endereco_completo.split(",") if p.strip()]
-
-    def eh_ruido(p: str) -> bool:
-        if re.fullmatch(r"\d{5}-?\d{3}", p):
-            return True
-        if re.fullmatch(r"[A-Z]{2}", p):
-            return True
-        if "/" in p:
-            return True
-        if cidade and cidade.lower() in p.lower():
-            return True
-        return False
-
-    while partes and eh_ruido(partes[-1]):
-        partes.pop()
-
-    if len(partes) >= 3:
-        return ", ".join(partes[:-1]), partes[-1]
-    if partes:
-        return ", ".join(partes), ""
-    return endereco_completo, ""
-
-
 def _id_da_url(href: str) -> str:
     m = re.search(r"-(\d+)$", href.rstrip("/"))
     return m.group(1) if m else href
@@ -105,7 +78,7 @@ def _parse_card(card) -> Optional[Listing]:
 
     endereco_el = card.select_one(".address span")
     endereco_completo = endereco_el.get_text(strip=True) if endereco_el else ""
-    endereco, bairro = _endereco_bairro(endereco_completo, cidade)
+    endereco, bairro = extrair_bairro(endereco_completo, cidade)
 
     lance_el = card.select_one(".discount-price")
     avaliacao_el = card.select_one(".last-price")

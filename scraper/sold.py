@@ -14,6 +14,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from db.store import Listing
+from scraper.enderecos import extrair_bairro
 
 API_URL = "https://offer-query.superbid.net/offers/"
 # stores.id 1161/1741 = Sold / Sold Maisativo, os operadores usados em sold.com.br
@@ -52,16 +53,6 @@ def _ocupado(offer: dict) -> str:
     return "desconhecido"
 
 
-def _parse_endereco_completo(texto: str) -> tuple[str, str]:
-    """'Rua X n° 160 - Bela Vista - São Paulo/SP, 01308-010' -> (endereco, bairro)."""
-    partes = [p.strip() for p in texto.split(" - ")]
-    if len(partes) >= 3:
-        return partes[0], partes[1]
-    if partes:
-        return partes[0], ""
-    return "", ""
-
-
 def _to_listing(offer: dict) -> Listing:
     # CUIDADO: offer["auction"]["address"] é o endereço do LEILOEIRO, não do imóvel.
     # A localização real do imóvel vem de product.location (bairro só dá pra tentar
@@ -69,12 +60,13 @@ def _to_listing(offer: dict) -> Listing:
     location = offer.get("product", {}).get("location", {}) or {}
     detail = offer.get("offerDetail", {}) or {}
     area = _to_float(_template_value(offer, "areatotal").replace(".", "").replace(",", "."))
-    endereco_completo = _template_value(offer, "endereco")
-    endereco, bairro = _parse_endereco_completo(endereco_completo)
 
     cidade_uf = location.get("city", "")  # formato "São Paulo - SP"
     cidade, _, estado = cidade_uf.rpartition(" - ")
     cidade = cidade.strip() or cidade_uf
+
+    endereco_completo = _template_value(offer, "endereco")
+    endereco, bairro = extrair_bairro(endereco_completo, cidade)
 
     return Listing(
         fonte="sold",
