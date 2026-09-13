@@ -190,6 +190,10 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
         <select class="month-select" id="f-categoria"><option value="">Todas</option></select>
       </div>
       <div class="filter-field">
+        <label>Estado</label>
+        <select class="month-select" id="f-estado"><option value="">Todos</option></select>
+      </div>
+      <div class="filter-field">
         <label>Status</label>
         <select class="month-select" id="f-status"><option value="">Todos</option></select>
       </div>
@@ -218,6 +222,7 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
           <tr>
             <th data-key="fonte">Fonte</th>
             <th data-key="categoria">Categoria</th>
+            <th data-key="estado">UF</th>
             <th data-key="cidade">Cidade</th>
             <th data-key="bairro">Bairro</th>
             <th data-key="valor_lance_atual" class="num">Lance</th>
@@ -294,12 +299,15 @@ function renderKpisEResumo() {
 function populateFilters() {
   const fontes = [...new Set(DADOS.map(d => d.fonte))].sort();
   const categorias = [...new Set(DADOS.map(d => d.categoria))].sort();
+  const estados = [...new Set(DADOS.map(d => d.estado).filter(Boolean))].sort();
   const statuses = [...new Set(DADOS.map(d => d.status))].sort();
   const selFonte = document.getElementById("f-fonte");
   const selCategoria = document.getElementById("f-categoria");
+  const selEstado = document.getElementById("f-estado");
   const selStatus = document.getElementById("f-status");
   fontes.forEach(f => selFonte.insertAdjacentHTML("beforeend", `<option value="${f}">${f}</option>`));
   categorias.forEach(c => selCategoria.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
+  estados.forEach(e => selEstado.insertAdjacentHTML("beforeend", `<option value="${e}">${e}</option>`));
   statuses.forEach(s => selStatus.insertAdjacentHTML("beforeend", `<option value="${s}">${STATUS_LABEL[s] || s}</option>`));
 }
 
@@ -307,6 +315,7 @@ function currentFilters() {
   return {
     fonte: document.getElementById("f-fonte").value,
     categoria: document.getElementById("f-categoria").value,
+    estado: document.getElementById("f-estado").value,
     status: document.getElementById("f-status").value,
     roiMin: document.getElementById("f-roi").value,
     cidade: document.getElementById("f-cidade").value.trim().toLowerCase(),
@@ -318,6 +327,7 @@ function applyFiltersAndSort() {
   let rows = DADOS.filter(d => {
     if (f.fonte && d.fonte !== f.fonte) return false;
     if (f.categoria && d.categoria !== f.categoria) return false;
+    if (f.estado && d.estado !== f.estado) return false;
     if (f.status && d.status !== f.status) return false;
     if (f.roiMin !== "" && !(d.roi_anualizado_pct >= Number(f.roiMin))) return false;
     if (f.cidade && !(d.cidade || "").toLowerCase().includes(f.cidade)) return false;
@@ -405,6 +415,7 @@ function renderTable(rows) {
     <tr>
       <td><span class="fonte-tag">${r.fonte}</span></td>
       <td>${r.categoria || "—"}</td>
+      <td>${r.estado || "—"}</td>
       <td>${r.cidade || "—"}</td>
       <td>${r.bairro || "—"}</td>
       <td class="num">${brl(r.valor_lance_atual)}</td>
@@ -415,7 +426,7 @@ function renderTable(rows) {
       <td>${r.url ? `<a class="link" href="${r.url}" target="_blank" rel="noopener">ver imóvel →</a>` : "—"}</td>
       <td><a class="link toggle-detalhe" href="#" data-idx="${i}">ver cálculo</a></td>
     </tr>
-    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="11" style="padding:0;background:var(--page);">${detalheHtml(r)}</td></tr>
+    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="12" style="padding:0;background:var(--page);">${detalheHtml(r)}</td></tr>
   `).join("");
   tbody.querySelectorAll(".toggle-detalhe").forEach(a => {
     a.addEventListener("click", (e) => {
@@ -435,7 +446,7 @@ document.querySelectorAll("thead th[data-key]").forEach(th => {
     applyFiltersAndSort();
   });
 });
-["f-fonte", "f-categoria", "f-status", "f-roi"].forEach(id =>
+["f-fonte", "f-categoria", "f-estado", "f-status", "f-roi"].forEach(id =>
   document.getElementById(id).addEventListener("change", applyFiltersAndSort)
 );
 document.getElementById("f-cidade").addEventListener("input", applyFiltersAndSort);
