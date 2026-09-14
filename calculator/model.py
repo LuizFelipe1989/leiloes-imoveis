@@ -51,6 +51,8 @@ class InvestmentInputs:
     valor_venda_estimado: Optional[float] = None   # se None, usa valor_avaliacao
     corretagem_venda_pct: float = DEFAULT_CORRETAGEM_VENDA_PCT
     imposto_ganho_capital_pct: float = DEFAULT_IMPOSTO_GANHO_CAPITAL_PCT
+    # metadado (não entra na conta) — só pra transparência de como valor_venda_estimado foi obtido
+    fonte_venda_estimada: str = "manual"
 
     def venda_estimada(self) -> float:
         return self.valor_venda_estimado if self.valor_venda_estimado is not None else self.valor_avaliacao

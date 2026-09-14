@@ -348,7 +348,8 @@ const CAMPO_LABEL = {
   reforma: "Reforma", ocupado: "Ocupado", custo_desocupacao: "Custo de desocupação",
   meses_posse: "Meses de posse", condominio_mensal: "Condomínio/mês",
   iptu_mensal: "IPTU/mês", outros_custos_mensais: "Outros custos/mês",
-  valor_venda_estimado: "Venda estimada", comissao_leiloeiro_pct: "Comissão leiloeiro",
+  valor_venda_estimado: "Venda estimada", fonte_venda_estimada: "Base da venda estimada",
+  comissao_leiloeiro_pct: "Comissão leiloeiro",
   itbi_pct: "ITBI", custas_cartorio_pct: "Custas cartório",
   advogado_due_diligence: "Due diligence", corretagem_venda_pct: "Corretagem na venda",
   imposto_ganho_capital_pct: "IR ganho de capital",
@@ -364,6 +365,12 @@ const CAMPO_MONETARIO = new Set(["valor_lance", "valor_avaliacao", "reforma", "c
   "advogado_due_diligence", "custo_total_aquisicao", "custo_total_posse", "investimento_total",
   "valor_liquido_venda", "lucro_bruto", "imposto_ganho_capital", "lucro_liquido"]);
 
+const FONTE_VENDA_LABEL = {
+  comparaveis_quintoandar: "comparáveis reais (QuintoAndar)",
+  haircut_avaliacao: "haircut de 5% sobre a avaliação",
+  manual: "manual",
+};
+
 function formatCampo(chave, valor) {
   if (typeof valor === "boolean") return valor ? "sim" : "não";
   if (typeof valor === "number") {
@@ -371,6 +378,7 @@ function formatCampo(chave, valor) {
     if (CAMPO_MONETARIO.has(chave)) return brl(valor);
     return valor;
   }
+  if (chave === "fonte_venda_estimada") return FONTE_VENDA_LABEL[valor] || valor;
   return valor ?? "—";
 }
 
@@ -395,7 +403,7 @@ function detalheHtml(r) {
     <div class="detalhe-grid">
       ${grupoDetalhe("Premissas usadas", r.premissas, ["valor_lance","valor_avaliacao","reforma","ocupado",
         "custo_desocupacao","meses_posse","condominio_mensal","iptu_mensal","outros_custos_mensais",
-        "valor_venda_estimado","comissao_leiloeiro_pct","itbi_pct","custas_cartorio_pct",
+        "valor_venda_estimado","fonte_venda_estimada","comissao_leiloeiro_pct","itbi_pct","custas_cartorio_pct",
         "advogado_due_diligence","corretagem_venda_pct","imposto_ganho_capital_pct"])}
       ${grupoDetalhe("Resultado do cálculo", r.detalhe, ["custo_total_aquisicao","custo_total_posse",
         "investimento_total","valor_liquido_venda","lucro_bruto","imposto_ganho_capital",

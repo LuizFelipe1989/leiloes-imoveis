@@ -112,6 +112,35 @@ def set_status(conn: sqlite3.Connection, imovel_id: str, status: str) -> None:
     conn.execute("UPDATE imoveis SET status = ?, ultima_atualizacao = ? WHERE id = ?", (status, _now(), imovel_id))
 
 
+def chave_regiao(estado: str, cidade: str, bairro: str, grupo: str = "") -> str:
+    norm = lambda s: (s or "").strip().lower()
+    return f"{norm(estado)}|{norm(cidade)}|{norm(bairro)}|{norm(grupo)}"
+
+
+def get_comparavel_cache(conn: sqlite3.Connection, chave: str, max_idade_dias: int = 30) -> Optional[dict]:
+    row = conn.execute("SELECT * FROM comparaveis_cache WHERE chave = ?", (chave,)).fetchone()
+    if row is None:
+        return None
+    idade = datetime.now(timezone.utc) - datetime.fromisoformat(row["atualizado_em"])
+    if idade.days > max_idade_dias:
+        return None
+    return dict(row)
+
+
+def set_comparavel_cache(conn: sqlite3.Connection, chave: str, encontrado: bool,
+                          preco_m2_mediano: Optional[float], n_comparaveis: Optional[int]) -> None:
+    conn.execute(
+        """INSERT INTO comparaveis_cache (chave, encontrado, preco_m2_mediano, n_comparaveis, atualizado_em)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(chave) DO UPDATE SET
+             encontrado = excluded.encontrado,
+             preco_m2_mediano = excluded.preco_m2_mediano,
+             n_comparaveis = excluded.n_comparaveis,
+             atualizado_em = excluded.atualizado_em""",
+        (chave, int(encontrado), preco_m2_mediano, n_comparaveis, _now()),
+    )
+
+
 def listar_com_ultima_analise(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         """

@@ -40,3 +40,13 @@ CREATE TABLE IF NOT EXISTS analises (
 );
 
 CREATE INDEX IF NOT EXISTS idx_analises_imovel ON analises(imovel_id);
+
+-- cache de preço/m² de comparáveis de mercado (QuintoAndar) por região, pra não
+-- bater na API externa de novo pra cada imóvel do mesmo bairro
+CREATE TABLE IF NOT EXISTS comparaveis_cache (
+    chave               TEXT PRIMARY KEY,   -- "<estado>|<cidade>|<bairro>" normalizado
+    encontrado          INTEGER NOT NULL,   -- 0 = região fora da cobertura/poucos comparáveis
+    preco_m2_mediano    REAL,
+    n_comparaveis       INTEGER,
+    atualizado_em       TEXT NOT NULL
+);

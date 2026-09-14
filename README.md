@@ -59,10 +59,55 @@ Todas as premissas percentuais têm default mas podem ser sobrescritas por
 imóvel (`InvestmentInputs`).
 
 A **triagem automática** (`calculator/screening.py`, rodada pelo `cli.py
-analisar`) usa premissas genéricas (reforma = 8% da avaliação, haircut de 5%
-na venda, 8 meses de posse) só para ranquear os imóveis raspados — sempre
-refaça a conta com números reais (reforma orçada, condomínio/IPTU reais,
-matrícula analisada) antes de decidir dar um lance.
+analisar`) usa premissas genéricas (reforma = 8% da avaliação, 8 meses de
+posse) só para ranquear os imóveis raspados — sempre refaça a conta com
+números reais (reforma orçada, condomínio/IPTU reais, matrícula analisada)
+antes de decidir dar um lance.
+
+### Valor de venda estimado: comparáveis reais ou haircut
+
+Pra estimar por quanto o imóvel venderia depois de reformado, a triagem tenta
+primeiro **comparáveis reais de mercado** (`calculator/mercado.py`): busca
+imóveis à venda no QuintoAndar no mesmo bairro, tira a mediana de R$/m² e
+multiplica pela área do imóvel arrematado. O QuintoAndar tem uma API pública
+sem autenticação nem proteção anti-bot (`apigw.prod.quintoandar.com.br`) —
+dois passos: resolve o bairro num slug (`/v1/search/location/slug/<slug>`)
+pra pegar centro+viewport, depois busca os imóveis à venda naquela área
+(`/v3/search/list`).
+
+Isso só funciona quando (a) o imóvel tem área conhecida — Caixa e Zukerman
+extraem isso da própria fonte, Sold e Banco do Brasil às vezes não têm — e
+(b) o bairro é coberto pelo QuintoAndar (cidades grandes: SP, RJ, BH,
+Campinas etc. — não cobre cidade pequena nem terreno). Quando falta uma das
+duas coisas, cai de volta no **haircut de 5% sobre a avaliação do banco**
+(o comportamento antigo). O campo `fonte_venda_estimada` em cada análise (visível no "ver
+cálculo" do dashboard) mostra qual dos dois foi usado.
+
+Os comparáveis também só entram na conta se forem do **mesmo grupo** do imóvel
+do leilão (casa vs. apartamento — `calculator.mercado.grupo_tipo`): misturar
+apartamento simples com casa de condomínio do lado (preço/m² bem diferente)
+foi o primeiro bug real que apareceu aqui, inflando a venda estimada em 2x.
+E tem uma trava de sanidade (`DESVIO_MAXIMO_VS_AVALIACAO = 1.5`): se o valor
+por comparáveis passar de 1,5x a avaliação do banco, o código desconfia (bairro
+oficial grande e heterogêneo — tipo "Butantã" em SP, que vai de área nobre a
+região bem mais simples — faz o QuintoAndar "vazar" pra uma sub-região mais
+cara) e cai no haircut em vez de confiar cegamente na mediana.
+
+Pra não bater na API do QuintoAndar de novo a cada execução, o preço/m² por
+região fica cacheado na tabela `comparaveis_cache` por 30 dias — o cache é
+por (estado, cidade, bairro), não por imóvel, já que vários imóveis
+costumam cair no mesmo bairro.
+
+```bash
+# roda análise só nos imóveis novos (default do dia a dia)
+.venv/bin/python cli.py analisar
+
+# reanalisa TUDO (inclusive já analisados) — útil depois de mudar a lógica
+# de análise ou depois de popular área em imóveis que não tinham antes.
+# Atenção: consulta o QuintoAndar pra cada região ainda não cacheada, então
+# pode ser lento na primeira vez com o banco cheio (milhares de imóveis).
+.venv/bin/python cli.py analisar --recalcular-tudo
+```
 
 ## As quatro fontes
 

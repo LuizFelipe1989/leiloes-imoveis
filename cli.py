@@ -11,7 +11,11 @@ import argparse
 from types import SimpleNamespace
 
 from calculator import analise_rapida
-from db import connect, save_analise, upsert_listings, listar_com_ultima_analise
+from calculator import mercado
+from db import (
+    connect, save_analise, upsert_listings, listar_com_ultima_analise,
+    chave_regiao, get_comparavel_cache, set_comparavel_cache,
+)
 from scraper import zukerman, sold, caixa, bancodobrasil
 from scraper.filters import eh_residencial_ou_terreno
 
@@ -80,25 +84,78 @@ def cmd_limpar_comerciais(args):
     print(f"{descartados} imóveis comerciais marcados como descartados")
 
 
+def _obter_preco_m2_por_regiao(conn, regioes: set, verbose: bool = True) -> dict:
+    """Resolve preço/m² de comparáveis (QuintoAndar) pra cada (estado,cidade,bairro,grupo),
+    usando cache em disco (comparaveis_cache) pra não bater na API de novo em toda execução.
+    `regioes` já vem filtrado pra só casa/apartamento (ver cmd_analisar) — grupo nunca é ''."""
+    preco_por_chave = {}
+    consultadas = 0
+    for estado, cidade, bairro, grupo in regioes:
+        chave = chave_regiao(estado, cidade, bairro, grupo)
+        cache = get_comparavel_cache(conn, chave)
+        if cache is None:
+            try:
+                # passa `grupo` como tipo_imovel: estimar_preco_m2_regiao só usa isso
+                # pra reclassificar em grupo_tipo(), que já é idempotente aqui
+                resultado = mercado.estimar_preco_m2_regiao(cidade, estado, bairro, grupo)
+            except Exception:
+                resultado = None
+            set_comparavel_cache(
+                conn, chave, resultado is not None,
+                resultado["preco_m2_mediano"] if resultado else None,
+                resultado["n_comparaveis"] if resultado else None,
+            )
+            consultadas += 1
+            cache = {"encontrado": int(resultado is not None),
+                     "preco_m2_mediano": resultado["preco_m2_mediano"] if resultado else None}
+        preco_por_chave[chave] = cache["preco_m2_mediano"] if cache["encontrado"] else None
+    if verbose:
+        cobertas = sum(1 for v in preco_por_chave.values() if v)
+        print(f"Comparáveis de mercado: {len(regioes)} região(ões) casa/apartamento, {consultadas} nova(s) "
+              f"consulta(s) ao QuintoAndar, {cobertas} região(ões) com cobertura (cache válido por 30 dias)")
+    return preco_por_chave
+
+
 def cmd_analisar(args):
     with connect() as conn:
-        rows = conn.execute("SELECT * FROM imoveis WHERE status = 'novo'").fetchall()
-        print(f"{len(rows)} imóveis novos para analisar")
+        status_alvo = ("novo", "analisado") if args.recalcular_tudo else ("novo",)
+        placeholders = ",".join("?" for _ in status_alvo)
+        rows = conn.execute(f"SELECT * FROM imoveis WHERE status IN ({placeholders})", status_alvo).fetchall()
+        print(f"{len(rows)} imóveis para analisar")
+
+        # só casa/apartamento entram na busca de comparáveis (QuintoAndar não lista
+        # terreno, e não vale a pena bater na API pros que nem vão poder usar o resultado)
+        regioes = set()
+        for r in rows:
+            if not r["cidade"]:
+                continue
+            grupo = mercado.grupo_tipo(r["tipo_imovel"])
+            if grupo:
+                regioes.add((r["estado"], r["cidade"], r["bairro"], grupo))
+        preco_m2_por_regiao = _obter_preco_m2_por_regiao(conn, regioes)
+
         analisados = 0
+        com_comparaveis = 0
         for row in rows:
             listing = dict(row)
             l = SimpleNamespace(
                 valor_lance_atual=listing["valor_lance_atual"],
                 valor_avaliacao=listing["valor_avaliacao"],
                 ocupado=listing["ocupado"],
+                area_m2=listing["area_m2"],
             )
-            resultado = analise_rapida(l)
+            grupo = mercado.grupo_tipo(listing["tipo_imovel"])
+            chave = chave_regiao(listing["estado"], listing["cidade"], listing["bairro"], grupo) if grupo else None
+            resultado = analise_rapida(l, preco_m2_mercado=preco_m2_por_regiao.get(chave) if chave else None)
             if resultado is None:
                 continue
             inputs, r = resultado
+            if inputs.fonte_venda_estimada == "comparaveis_quintoandar":
+                com_comparaveis += 1
             save_analise(conn, listing["id"], inputs.__dict__, r)
             analisados += 1
-        print(f"{analisados} imóveis analisados (triagem automática)")
+        print(f"{analisados} imóveis analisados — {com_comparaveis} com valor de venda baseado em "
+              f"comparáveis reais de mercado, {analisados - com_comparaveis} pelo haircut genérico sobre a avaliação")
 
 
 def cmd_listar(args):
@@ -123,6 +180,8 @@ def main():
     p_atualizar.set_defaults(func=cmd_atualizar)
 
     p_analisar = sub.add_parser("analisar", help="Roda a triagem automática (premissas padrão) nos imóveis novos")
+    p_analisar.add_argument("--recalcular-tudo", action="store_true",
+                             help="Reanalisa também os imóveis já analisados (não só os novos) — útil depois de mudar a lógica de análise")
     p_analisar.set_defaults(func=cmd_analisar)
 
     p_limpar = sub.add_parser("limpar-comerciais", help="Descarta imóveis comerciais já salvos (foco em residencial/terreno)")

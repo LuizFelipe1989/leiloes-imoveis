@@ -16,6 +16,7 @@ Por isso esse scraper precisa do Playwright com uma janela de navegador real
 import base64
 import csv
 import io
+import re
 import sys
 from pathlib import Path
 from typing import Iterable, Optional
@@ -73,6 +74,23 @@ def _parse_csv(raw_bytes: bytes) -> list[dict]:
     return rows
 
 
+def _area_da_descricao(descricao: str) -> Optional[float]:
+    # "Casa, 130.00 de área total, 45.32 de área privativa, 239.90 de área do terreno, ..."
+    # área privativa é a mais comparável com o "área útil" que os sites de mercado reportam;
+    # cai pra área total (casas costumam não ter "privativa" preenchida) e por fim terreno.
+    def valor(rotulo: str) -> Optional[float]:
+        m = re.search(rf"([\d.]+)\s*de\s*{rotulo}", descricao or "")
+        if not m:
+            return None
+        try:
+            v = float(m.group(1))
+        except ValueError:
+            return None
+        return v if v > 0 else None
+
+    return valor("área privativa") or valor("área total") or valor("área do terreno")
+
+
 def _tipo_da_descricao(descricao: str) -> str:
     # "Casa, 130.00 de área total, ..." -> "Casa"; "Terreno Comercial, 500 m2" -> mantém como está
     return descricao.split(",")[0].strip() if descricao else ""
@@ -92,6 +110,7 @@ def _row_to_listing(row: dict) -> Optional[Listing]:
         cidade=row.get("Cidade", "").strip(),
         estado=row.get("UF", "").strip(),
         tipo_imovel=_tipo_da_descricao(descricao),
+        area_m2=_area_da_descricao(descricao),
         valor_avaliacao=_to_float(row.get("Valor de avaliação", "")),
         valor_lance_atual=_to_float(row.get("Preço", "")),
         praca="",

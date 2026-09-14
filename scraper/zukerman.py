@@ -49,6 +49,16 @@ def _parse_card(card) -> Optional[Listing]:
     tipo_el = card.select_one(".card-property-price-lote")
     tipo = tipo_el.get_text(strip=True) if tipo_el else ""
 
+    area_m2 = None
+    area_el = card.select_one(".card-property-info-label")
+    if area_el:
+        m_area = re.search(r"([\d.,]+)\s*m", area_el.get_text(strip=True))
+        if m_area:
+            try:
+                area_m2 = float(m_area.group(1).replace(".", "").replace(",", "."))
+            except ValueError:
+                area_m2 = None
+
     addr = card.select_one("address.card-property-address")
     cidade = estado = bairro = endereco = ""
     if addr:
@@ -98,6 +108,7 @@ def _parse_card(card) -> Optional[Listing]:
         cidade=cidade,
         estado=estado,
         tipo_imovel=tipo,
+        area_m2=area_m2,
         valor_avaliacao=None,  # Zuk não expõe avaliação na listagem; preencher manualmente na análise
         valor_lance_atual=valor_lance,
         praca=praca,
