@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS imoveis (
     url                 TEXT,
     imagem_url          TEXT,
     edital_url          TEXT,
-    status              TEXT NOT NULL DEFAULT 'novo',  -- novo | analisado | descartado | arrematado | vendido
+    status              TEXT NOT NULL DEFAULT 'novo',  -- novo | analisado | descartado | arrematado | vendido | encerrado (sumiu da fonte ou data já passou)
     primeira_vez_visto  TEXT NOT NULL,
     ultima_atualizacao  TEXT NOT NULL
 );

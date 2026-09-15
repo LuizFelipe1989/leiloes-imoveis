@@ -107,9 +107,65 @@ def save_analise(conn: sqlite3.Connection, imovel_id: str, inputs: dict, resulta
                  (_now(), imovel_id))
 
 
+STATUS_VALIDOS = ("novo", "analisado", "descartado", "arrematado", "vendido", "encerrado")
+
+
 def set_status(conn: sqlite3.Connection, imovel_id: str, status: str) -> None:
-    assert status in ("novo", "analisado", "descartado", "arrematado", "vendido")
+    assert status in STATUS_VALIDOS
     conn.execute("UPDATE imoveis SET status = ?, ultima_atualizacao = ? WHERE id = ?", (status, _now(), imovel_id))
+
+
+def marcar_encerrados_por_ausencia(conn: sqlite3.Connection, fonte: str, ids_vistos: set[str]) -> int:
+    """Marca como 'encerrado' imóveis de `fonte` que sumiram da fonte (não vieram
+    na leva mais recente raspada) — o leilão/venda já não está mais disponível no
+    site de origem, seja porque foi arrematado/vendido ou porque o edital venceu."""
+    rows = conn.execute(
+        "SELECT id FROM imoveis WHERE fonte = ? AND status NOT IN ('descartado', 'encerrado')", (fonte,)
+    ).fetchall()
+    ausentes = [r["id"] for r in rows if r["id"] not in ids_vistos]
+    if not ausentes:
+        return 0
+    now = _now()
+    conn.executemany(
+        "UPDATE imoveis SET status = 'encerrado', ultima_atualizacao = ? WHERE id = ?",
+        [(now, imovel_id) for imovel_id in ausentes],
+    )
+    return len(ausentes)
+
+
+def _parse_data_leilao(texto: str) -> Optional[datetime]:
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    formatos = ["%Y-%m-%d %H:%M:%S", "%d/%m/%Y às %H:%M", "%d/%m/%Y %H:%M"]
+    for fmt in formatos:
+        try:
+            return datetime.strptime(texto, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def marcar_encerrados_por_data_passada(conn: sqlite3.Connection) -> int:
+    """Marca como 'encerrado' imóveis cuja data de leilão já passou (Zukerman/Sold
+    trazem data; Caixa/Banco do Brasil não, então não são afetados por isso)."""
+    rows = conn.execute(
+        "SELECT id, data_leilao FROM imoveis WHERE status NOT IN ('descartado', 'encerrado') AND data_leilao != ''"
+    ).fetchall()
+    agora = datetime.now()
+    vencidos = []
+    for row in rows:
+        data = _parse_data_leilao(row["data_leilao"])
+        if data and data < agora:
+            vencidos.append(row["id"])
+    if not vencidos:
+        return 0
+    now = _now()
+    conn.executemany(
+        "UPDATE imoveis SET status = 'encerrado', ultima_atualizacao = ? WHERE id = ?",
+        [(now, imovel_id) for imovel_id in vencidos],
+    )
+    return len(vencidos)
 
 
 def chave_regiao(estado: str, cidade: str, bairro: str, grupo: str = "") -> str:
@@ -156,7 +212,7 @@ def listar_com_ultima_analise(conn: sqlite3.Connection) -> list[sqlite3.Row]:
                 FROM analises GROUP BY imovel_id
             ) latest ON a1.imovel_id = latest.imovel_id AND a1.criado_em = latest.max_criado_em
         ) a ON a.imovel_id = i.id
-        WHERE i.status != 'descartado'
+        WHERE i.status NOT IN ('descartado', 'encerrado')
         ORDER BY (a.roi_anualizado_pct IS NULL), a.roi_anualizado_pct DESC
         """
     ).fetchall()

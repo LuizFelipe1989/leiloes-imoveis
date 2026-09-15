@@ -8,6 +8,10 @@ Uso:
 """
 
 import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 from calculator import analise_rapida
@@ -15,14 +19,43 @@ from calculator import mercado
 from db import (
     connect, save_analise, upsert_listings, listar_com_ultima_analise,
     chave_regiao, get_comparavel_cache, set_comparavel_cache,
+    marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada,
 )
-from scraper import zukerman, sold, caixa, bancodobrasil
+from db.store import Listing
+from scraper import zukerman, sold, bancodobrasil
 from scraper.filters import eh_residencial_ou_terreno
+
+CAIXA_SCRIPT = Path(__file__).parent / "scraper" / "caixa.py"
+
+
+def _buscar_caixa_isolado(ufs: list[str], tentativas: int = 3) -> list[Listing]:
+    """Roda scraper/caixa.py num subprocesso isolado (ver comentário no topo
+    daquele arquivo). O Chromium com janela real às vezes fecha sozinho no meio
+    da navegação (flakiness observada, não 100% reproduzível/explicada) — vale
+    a pena tentar de novo antes de desistir."""
+    erro = None
+    for tentativa in range(1, tentativas + 1):
+        proc = subprocess.run(
+            [sys.executable, str(CAIXA_SCRIPT), *ufs],
+            capture_output=True, text=True, timeout=300,
+        )
+        if proc.returncode == 0:
+            try:
+                dados = json.loads(proc.stdout)
+                return [Listing(**d) for d in dados]
+            except json.JSONDecodeError as e:
+                erro = f"saída não era JSON válido: {e}"
+        else:
+            erro = proc.stderr.strip()[-2000:]
+        if tentativa < tentativas:
+            print(f"[caixa] tentativa {tentativa} falhou ({erro[:200]!r}), tentando de novo...")
+    raise RuntimeError(f"subprocesso da Caixa falhou após {tentativas} tentativas: {erro}")
 
 
 def cmd_atualizar(args):
     ufs = [u.upper() for u in args.ufs]
     todas = []
+    ids_vistos_por_fonte: dict[str, set] = {}
 
     if "zukerman" in args.fontes:
         print(f"[zukerman] buscando {ufs}...")
@@ -30,6 +63,7 @@ def cmd_atualizar(args):
             r = zukerman.buscar(ufs)
             print(f"[zukerman] {len(r)} imóveis")
             todas.extend(r)
+            ids_vistos_por_fonte["zukerman"] = {l.id for l in r}
         except Exception as e:
             print(f"[zukerman] erro: {e}")
 
@@ -39,15 +73,17 @@ def cmd_atualizar(args):
             r = sold.buscar(estados=ufs)
             print(f"[sold] {len(r)} imóveis")
             todas.extend(r)
+            ids_vistos_por_fonte["sold"] = {l.id for l in r}
         except Exception as e:
             print(f"[sold] erro: {e}")
 
     if "caixa" in args.fontes:
         print(f"[caixa] buscando {ufs} (abre uma janela de navegador, não feche)...")
         try:
-            r = caixa.buscar(ufs)
+            r = _buscar_caixa_isolado(ufs)
             print(f"[caixa] {len(r)} imóveis")
             todas.extend(r)
+            ids_vistos_por_fonte["caixa"] = {l.id for l in r}
         except Exception as e:
             print(f"[caixa] erro: {e}")
 
@@ -57,6 +93,7 @@ def cmd_atualizar(args):
             r = bancodobrasil.buscar(estados=ufs)
             print(f"[bancodobrasil] {len(r)} imóveis")
             todas.extend(r)
+            ids_vistos_por_fonte["bancodobrasil"] = {l.id for l in r}
         except Exception as e:
             print(f"[bancodobrasil] erro: {e}")
 
@@ -67,7 +104,24 @@ def cmd_atualizar(args):
 
     with connect() as conn:
         n = upsert_listings(conn, todas)
-    print(f"Total salvo/atualizado no banco: {n}")
+        print(f"Total salvo/atualizado no banco: {n}")
+
+        # imóvel que sumiu da fonte (não veio nessa leva) = leilão/venda não está
+        # mais disponível — usa a lista CRUA (ids_vistos_por_fonte), não a `todas`
+        # filtrada, senão um imóvel comercial ainda ativo seria marcado como encerrado
+        # só por ter sido descartado da nossa seleção.
+        encerrados_ausencia = 0
+        for fonte, ids_vistos in ids_vistos_por_fonte.items():
+            if not ids_vistos:
+                # busca bem-sucedida mas devolveu 0 imóveis é suspeito (site pode ter
+                # mudado de estrutura) — mais seguro não presumir que tudo encerrou
+                print(f"[{fonte}] 0 imóveis vistos, pulando verificação de encerrados (suspeito demais pra confiar)")
+                continue
+            encerrados_ausencia += marcar_encerrados_por_ausencia(conn, fonte, ids_vistos)
+
+        encerrados_data = marcar_encerrados_por_data_passada(conn)
+        print(f"Encerrados: {encerrados_ausencia} por terem sumido da fonte, "
+              f"{encerrados_data} por data de leilão já vencida")
 
 
 def cmd_limpar_comerciais(args):
@@ -82,6 +136,15 @@ def cmd_limpar_comerciais(args):
                 )
                 descartados += 1
     print(f"{descartados} imóveis comerciais marcados como descartados")
+
+
+def cmd_limpar_encerrados(args):
+    """Marca como 'encerrado' imóveis com data de leilão já vencida (Zukerman/Sold).
+    Não pega os que sumiram da fonte sem deixar data — isso só acontece rodando
+    `atualizar` de novo, que já chama isso automaticamente."""
+    with connect() as conn:
+        n = marcar_encerrados_por_data_passada(conn)
+    print(f"{n} imóveis marcados como encerrados (data de leilão já vencida)")
 
 
 def _obter_preco_m2_por_regiao(conn, regioes: set, verbose: bool = True) -> dict:
@@ -186,6 +249,9 @@ def main():
 
     p_limpar = sub.add_parser("limpar-comerciais", help="Descarta imóveis comerciais já salvos (foco em residencial/terreno)")
     p_limpar.set_defaults(func=cmd_limpar_comerciais)
+
+    p_limpar_enc = sub.add_parser("limpar-encerrados", help="Marca como encerrados imóveis com data de leilão já vencida")
+    p_limpar_enc.set_defaults(func=cmd_limpar_encerrados)
 
     p_listar = sub.add_parser("listar", help="Lista os imóveis ordenados por retorno anualizado")
     p_listar.add_argument("--limit", type=int, default=30)

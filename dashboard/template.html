@@ -122,7 +122,7 @@ table.detail-table tr.detail-row:hover > td { background: none; }
 .status-badge.novo { color: var(--future); background: var(--neutral-track); }
 .status-badge.analisado { color: var(--accent); background: var(--accent-soft); }
 .status-badge.arrematado, .status-badge.vendido { color: var(--good); background: var(--good-soft); }
-.status-badge.descartado { color: var(--ink-muted); background: var(--gridline); }
+.status-badge.descartado, .status-badge.encerrado { color: var(--ink-muted); background: var(--gridline); }
 
 .roi-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-weight: 650; font-variant-numeric: tabular-nums; font-family: 'Plex Mono Dash', monospace; font-size: 12px; }
 .roi-good { background: var(--good-soft); color: var(--good); }
@@ -266,7 +266,7 @@ function roiClass(v) {
   if (v >= 0) return "roi-warn";
   return "roi-bad";
 }
-const STATUS_LABEL = {novo: "novo", analisado: "analisado", descartado: "descartado", arrematado: "arrematado", vendido: "vendido"};
+const STATUS_LABEL = {novo: "novo", analisado: "analisado", descartado: "descartado", arrematado: "arrematado", vendido: "vendido", encerrado: "encerrado"};
 
 function statTile(label, value) {
   return `<div class="stat-tile"><div class="label">${label}</div><div class="value">${value}</div></div>`;

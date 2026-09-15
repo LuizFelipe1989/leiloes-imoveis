@@ -109,6 +109,27 @@ costumam cair no mesmo bairro.
 .venv/bin/python cli.py analisar --recalcular-tudo
 ```
 
+## Ciclo de vida do imóvel: `status`
+
+`novo` → `analisado` → (`arrematado` / `vendido`, manual) — e a qualquer momento
+pode virar `descartado` (comercial, fora do foco) ou **`encerrado`**, que é o
+que resolve leilão que já aconteceu:
+
+- **Por ausência**: todo `cli.py atualizar` compara os imóveis vistos na leva
+  atual de cada fonte com o que já está salvo — o que sumiu (arrematado,
+  vendido, edital cancelado, etc.) vira `encerrado`. Isso cobre Caixa e Banco
+  do Brasil, que não expõem data de leilão.
+- **Por data vencida**: Zukerman e Sold trazem data de leilão — se já passou,
+  `encerrado` direto, mesmo que o imóvel ainda apareça listado (`cli.py
+  limpar-encerrados` roda isso isoladamente, sem precisar rescanear).
+
+Imóveis `encerrado` (assim como `descartado`) somem do dashboard e do
+`cli.py listar`, mas continuam no banco — não é um hard delete, só sai da
+visão ativa. Se uma fonte falhar na busca (erro de rede, mudança de HTML), a
+verificação por ausência **não roda pra ela** naquele ciclo — do contrário
+tudo que essa fonte já tinha salvo seria erroneamente marcado como encerrado
+só por não termos conseguido buscar de novo.
+
 ## As quatro fontes
 
 | Fonte | Como funciona | Observações |
@@ -120,11 +141,14 @@ costumam cair no mesmo bairro.
 
 ## Limitações conhecidas (v1)
 
-- **Caixa não roda headless.** Isso significa que não dá pra rodar esse
-  scraper específico num cron/servidor sem display gráfico — só na sua
-  máquina, com uma janela abrindo. Se isso virar um problema, dá pra investigar
-  automação com perfil de browser persistente ou aceitar rodar manualmente de
-  vez em quando.
+- **Caixa não roda headless** — só na sua máquina, com uma janela abrindo. E é
+  **flaky mesmo assim**: o Chromium às vezes fecha sozinho no meio da
+  navegação (`TargetClosedError`), sem uma causa 100% identificada — não é
+  sempre reproduzível, então pode ser contenção de recursos do sistema mais do
+  que um bug de código. `cli.py atualizar` já roda esse scraper como
+  subprocesso isolado (`_buscar_caixa_isolado`, ver comentário no topo de
+  `scraper/caixa.py`) e tenta de novo até 3x antes de desistir — na prática
+  quase sempre resolve numa das tentativas.
 - **Zukerman só pega a primeira leva de resultados por estado** (a listagem
   completa carrega mais via scroll infinito, que ainda não foi mapeado). Para
   cobertura maior de uma cidade específica, use `zukerman.buscar_cidade(uf,

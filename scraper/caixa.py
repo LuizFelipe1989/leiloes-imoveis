@@ -11,13 +11,25 @@ estabelecidos ao navegar numa página normal do site primeiro.
 
 Por isso esse scraper precisa do Playwright com uma janela de navegador real
 (não roda em headless nem em servidor sem display).
+
+IMPORTANTE: rode `buscar()` num processo Python que NÃO tenha importado
+`requests` antes — por algum motivo (nunca totalmente investigado; suspeita é
+conflito de SSL entre urllib3 e o processo do Chromium do Playwright) ter
+`requests` importado no mesmo processo faz o `page.goto()` falhar com
+"Target page, context or browser has been closed" especificamente nesse
+domínio. `cli.py` por isso roda esse módulo como subprocesso isolado (`python
+scraper/caixa.py <UF> <UF> ...` imprime os imóveis em JSON no stdout) em vez
+de chamar `caixa.buscar()` direto — todos os outros scrapers já usam
+`requests`, então qualquer import compartilhado do mesmo processo reproduz o bug.
 """
 
 import base64
 import csv
 import io
+import json
 import re
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -137,7 +149,7 @@ def buscar(estados: Iterable[str]) -> list[Listing]:
                 csv_url = f"{BASE_URL}/listaweb/Lista_imoveis_{uf.upper()}.csv"
                 result = page.evaluate(_FETCH_AS_BASE64_JS, csv_url)
                 if result["status"] != 200 or not result["base64"]:
-                    print(f"[caixa] falha ao baixar lista de {uf}: HTTP {result['status']}")
+                    print(f"[caixa] falha ao baixar lista de {uf}: HTTP {result['status']}", file=sys.stderr)
                     continue
                 raw_bytes = base64.b64decode(result["base64"])
                 rows = _parse_csv(raw_bytes)
@@ -151,7 +163,15 @@ def buscar(estados: Iterable[str]) -> list[Listing]:
 
 
 if __name__ == "__main__":
-    result = buscar(["SP"])
-    print(f"{len(result)} imóveis encontrados")
-    for l in result[:5]:
-        print(l.cidade, l.valor_lance_atual, l.valor_avaliacao, l.url)
+    # modo CLI: imprime só JSON no stdout (pra `cli.py` rodar isso via subprocess
+    # e conseguir reconstruir os Listings) — qualquer log/erro vai pro stderr.
+    ufs_arg = sys.argv[1:] or ["SP"]
+    if ufs_arg == ["--debug"] or "--debug" in ufs_arg:
+        ufs_arg = [u for u in ufs_arg if u != "--debug"] or ["SP"]
+        result = buscar(ufs_arg)
+        print(f"{len(result)} imóveis encontrados", file=sys.stderr)
+        for l in result[:5]:
+            print(l.cidade, l.valor_lance_atual, l.valor_avaliacao, l.url, file=sys.stderr)
+    else:
+        result = buscar(ufs_arg)
+        print(json.dumps([asdict(l) for l in result], ensure_ascii=False))
