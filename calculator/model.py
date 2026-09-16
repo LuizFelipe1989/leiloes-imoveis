@@ -54,6 +54,15 @@ class InvestmentInputs:
     # metadado (não entra na conta) — só pra transparência de como valor_venda_estimado foi obtido
     fonte_venda_estimada: str = "manual"
 
+    # --- Arremates recentes na região (complemento informativo, não entra na conta) ---
+    # "por quanto imóveis parecidos foram DE FATO arrematados" — diferente do
+    # valor_venda_estimado, que é preço PEDIDO no mercado aberto (QuintoAndar) ou haircut.
+    arremate_recente_valor: Optional[float] = None
+    arremate_recente_data: str = ""
+    arremate_recente_endereco: str = ""
+    arremate_recente_preco_m2: Optional[float] = None
+    arremate_recente_n_amostra: int = 0
+
     def venda_estimada(self) -> float:
         return self.valor_venda_estimado if self.valor_venda_estimado is not None else self.valor_avaliacao
 

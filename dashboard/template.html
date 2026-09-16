@@ -144,6 +144,11 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
 .detalhe-nota { padding: 0 20px 14px; font-size: 11.5px; color: var(--ink-muted); }
 .detalhe-vazio { padding: 14px 20px; color: var(--ink-muted); font-size: 12.5px; }
 
+.arremate-destaque { margin: 0 20px 14px; padding: 12px 16px; border-radius: 10px; background: var(--accent-soft); border: 1px solid var(--border); }
+.arremate-destaque .arremate-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+.arremate-destaque .detalhe-linha .k { color: var(--ink-secondary); }
+.arremate-nota { margin-top: 8px; font-size: 11px; color: var(--ink-secondary); }
+
 .alert-empty { color: var(--ink-muted); font-size: 13px; padding: 30px 0; text-align: center; }
 
 .footnotes { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--gridline); font-size: 11.5px; color: var(--ink-muted); display: flex; flex-direction: column; gap: 4px; }
@@ -357,13 +362,23 @@ const CAMPO_LABEL = {
   investimento_total: "Investimento total", valor_liquido_venda: "Valor líquido da venda",
   lucro_bruto: "Lucro bruto", imposto_ganho_capital: "IR sobre o ganho",
   lucro_liquido: "Lucro líquido", roi_pct: "ROI no período", roi_anualizado_pct: "ROI anualizado",
+  arremate_recente_valor: "Valor do último arremate", arremate_recente_data: "Data do arremate",
+  arremate_recente_endereco: "Imóvel arrematado", arremate_recente_preco_m2: "Mediana R$/m² (amostra)",
+  arremate_recente_n_amostra: "Tamanho da amostra",
 };
 const CAMPO_PCT = new Set(["comissao_leiloeiro_pct", "itbi_pct", "custas_cartorio_pct",
   "corretagem_venda_pct", "imposto_ganho_capital_pct", "roi_pct", "roi_anualizado_pct", "desconto_pct"]);
 const CAMPO_MONETARIO = new Set(["valor_lance", "valor_avaliacao", "reforma", "custo_desocupacao",
   "condominio_mensal", "iptu_mensal", "outros_custos_mensais", "valor_venda_estimado",
   "advogado_due_diligence", "custo_total_aquisicao", "custo_total_posse", "investimento_total",
-  "valor_liquido_venda", "lucro_bruto", "imposto_ganho_capital", "lucro_liquido"]);
+  "valor_liquido_venda", "lucro_bruto", "imposto_ganho_capital", "lucro_liquido",
+  "arremate_recente_valor", "arremate_recente_preco_m2"]);
+
+function fmtDataHora(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso.replace(" ", "T"));
+  return isNaN(d) ? iso : d.toLocaleDateString("pt-BR");
+}
 
 const FONTE_VENDA_LABEL = {
   comparaveis_quintoandar: "comparáveis reais (QuintoAndar)",
@@ -379,6 +394,7 @@ function formatCampo(chave, valor) {
     return valor;
   }
   if (chave === "fonte_venda_estimada") return FONTE_VENDA_LABEL[valor] || valor;
+  if (chave === "arremate_recente_data") return fmtDataHora(valor);
   return valor ?? "—";
 }
 
@@ -392,6 +408,19 @@ function grupoDetalhe(titulo, obj, chaves) {
           <span class="v">${formatCampo(k, obj[k])}</span>
         </div>
       `).join("")}
+    </div>`;
+}
+
+function arremateHtml(premissas) {
+  if (!premissas.arremate_recente_n_amostra) return "";
+  return `
+    <div class="arremate-destaque">
+      <div class="arremate-titulo">Arremate recente na cidade — complemento</div>
+      <div class="detalhe-linha"><span class="k">${CAMPO_LABEL.arremate_recente_valor}</span><span class="v">${brl(premissas.arremate_recente_valor)} em ${fmtDataHora(premissas.arremate_recente_data)}</span></div>
+      <div class="detalhe-linha"><span class="k">Imóvel arrematado</span><span class="v">${premissas.arremate_recente_endereco || "—"}</span></div>
+      ${premissas.arremate_recente_preco_m2 ? `<div class="detalhe-linha"><span class="k">${CAMPO_LABEL.arremate_recente_preco_m2}</span><span class="v">${brl(premissas.arremate_recente_preco_m2)}/m²</span></div>` : ""}
+      <div class="detalhe-linha"><span class="k">${CAMPO_LABEL.arremate_recente_n_amostra}</span><span class="v">${premissas.arremate_recente_n_amostra} imóvel(is)</span></div>
+      <div class="arremate-nota">Preço efetivamente PAGO em leilões concluídos recentemente na MESMA CIDADE (mesmo tipo casa/apartamento, via Sold/Superbid) — não é por bairro (a amostra de leilões concluídos é pequena demais pra isso), então numa cidade grande e heterogênea o valor pode vir de um bairro bem diferente do imóvel em questão. Diferente dos comparáveis de mercado aberto acima (que são preço PEDIDO, não pago). Não entra na conta do ROI, é só referência.</div>
     </div>`;
 }
 
@@ -409,6 +438,7 @@ function detalheHtml(r) {
         "investimento_total","valor_liquido_venda","lucro_bruto","imposto_ganho_capital",
         "lucro_liquido","roi_pct","roi_anualizado_pct"])}
     </div>
+    ${arremateHtml(r.premissas)}
     <div class="detalhe-nota">
       Essa é uma triagem automática com premissas genéricas — refaça a conta com números reais
       (reforma orçada, condomínio/IPTU reais, valor de venda pesquisado) antes de decidir dar um lance.

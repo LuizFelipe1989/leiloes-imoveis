@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 from calculator import analise_rapida
 from calculator import mercado
+from calculator import arremates
 from db import (
     connect, save_analise, upsert_listings, listar_com_ultima_analise,
     chave_regiao, get_comparavel_cache, set_comparavel_cache,
@@ -197,8 +198,21 @@ def cmd_analisar(args):
                 regioes.add((r["estado"], r["cidade"], r["bairro"], grupo))
         preco_m2_por_regiao = _obter_preco_m2_por_regiao(conn, regioes)
 
+        # arremates reais (leilões concluídos com lance vencedor) — busca nacional
+        # única por execução, indexada em memória; é só complemento informativo,
+        # não entra na conta do valor de venda (amostra pequena demais pra isso)
+        print("Buscando arremates recentes na Superbid (complemento informativo)...")
+        try:
+            indice_arremates = arremates.indexar_por_regiao(arremates.buscar_arremates_recentes())
+            print(f"{sum(len(v) for v in indice_arremates.values())} arremates indexados em "
+                  f"{len(indice_arremates)} combinação(ões) de região/tipo")
+        except Exception as e:
+            print(f"[arremates] erro ao buscar (seguindo sem esse complemento): {e}")
+            indice_arremates = {}
+
         analisados = 0
         com_comparaveis = 0
+        com_arremate = 0
         for row in rows:
             listing = dict(row)
             l = SimpleNamespace(
@@ -209,16 +223,25 @@ def cmd_analisar(args):
             )
             grupo = mercado.grupo_tipo(listing["tipo_imovel"])
             chave = chave_regiao(listing["estado"], listing["cidade"], listing["bairro"], grupo) if grupo else None
-            resultado = analise_rapida(l, preco_m2_mercado=preco_m2_por_regiao.get(chave) if chave else None)
+            arremate_info = arremates.resumo_regiao(
+                indice_arremates, listing["estado"], listing["cidade"], listing["tipo_imovel"]
+            )
+            resultado = analise_rapida(
+                l, preco_m2_mercado=preco_m2_por_regiao.get(chave) if chave else None,
+                arremate_info=arremate_info,
+            )
             if resultado is None:
                 continue
             inputs, r = resultado
             if inputs.fonte_venda_estimada == "comparaveis_quintoandar":
                 com_comparaveis += 1
+            if arremate_info:
+                com_arremate += 1
             save_analise(conn, listing["id"], inputs.__dict__, r)
             analisados += 1
         print(f"{analisados} imóveis analisados — {com_comparaveis} com valor de venda baseado em "
-              f"comparáveis reais de mercado, {analisados - com_comparaveis} pelo haircut genérico sobre a avaliação")
+              f"comparáveis reais de mercado, {analisados - com_comparaveis} pelo haircut genérico sobre a avaliação "
+              f"({com_arremate} também com arremate recente na região como complemento)")
 
 
 def cmd_listar(args):

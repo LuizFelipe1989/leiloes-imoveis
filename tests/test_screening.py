@@ -35,8 +35,26 @@ def test_sem_area_ou_sem_preco_m2_usa_haircut():
     assert inputs2.fonte_venda_estimada == "haircut_avaliacao"
 
 
+def test_arremate_info_e_so_metadado_nao_afeta_valor_venda():
+    arremate_info = {
+        "ultimo_valor": 999_999, "ultimo_data": "2026-09-10 10:00:00",
+        "ultimo_endereco": "Rua Teste, 123", "mediana_preco_m2": 7000, "n_amostra": 4,
+    }
+    inputs = montar_inputs_rapidos(_listing(), preco_m2_mercado=6000, arremate_info=arremate_info)
+    # continua vindo dos comparáveis (6000 * 50 = 300_000), arremate não entra na conta
+    assert inputs.fonte_venda_estimada == "comparaveis_quintoandar"
+    assert inputs.valor_venda_estimado == 300_000
+    assert inputs.arremate_recente_valor == 999_999
+    assert inputs.arremate_recente_n_amostra == 4
+
+    sem_arremate = montar_inputs_rapidos(_listing(), preco_m2_mercado=6000, arremate_info=None)
+    assert sem_arremate.arremate_recente_valor is None
+    assert sem_arremate.arremate_recente_n_amostra == 0
+
+
 if __name__ == "__main__":
     test_usa_comparaveis_quando_plausivel()
     test_descarta_comparavel_implausivel_e_cai_no_haircut()
     test_sem_area_ou_sem_preco_m2_usa_haircut()
+    test_arremate_info_e_so_metadado_nao_afeta_valor_venda()
     print(f"OK - todos os testes passaram (limite atual: {DESVIO_MAXIMO_VS_AVALIACAO}x)")

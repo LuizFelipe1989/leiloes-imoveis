@@ -41,19 +41,25 @@ def _estimar_venda(listing: Listing, preco_m2_mercado: Optional[float]) -> tuple
     return listing.valor_avaliacao * (1 - HAIRCUT_VENDA_PCT), "haircut_avaliacao"
 
 
-def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = None) -> Optional[InvestmentInputs]:
+def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = None,
+                           arremate_info: Optional[dict] = None) -> Optional[InvestmentInputs]:
     """Monta InvestmentInputs com premissas padrão. Retorna None se faltar dado essencial.
 
     `preco_m2_mercado`: preço/m² mediano de comparáveis à venda na região do imóvel
     (ver calculator/mercado.py) — quando informado e o imóvel tem área conhecida,
     substitui o haircut genérico como base do valor de venda estimado.
+
+    `arremate_info`: resumo de arremates reais recentes na região (ver
+    calculator/arremates.py) — não entra na conta do valor de venda (é só
+    complemento informativo, exibido no dashboard), já que é uma amostra
+    pequena demais pra usar como premissa de cálculo com segurança.
     """
     if not listing.valor_lance_atual or not listing.valor_avaliacao:
         return None
 
     ocupado = listing.ocupado == "sim"
     valor_venda, fonte_venda = _estimar_venda(listing, preco_m2_mercado)
-    return InvestmentInputs(
+    inputs = InvestmentInputs(
         valor_lance=listing.valor_lance_atual,
         valor_avaliacao=listing.valor_avaliacao,
         reforma=listing.valor_avaliacao * REFORMA_PCT_AVALIACAO,
@@ -63,10 +69,18 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
         valor_venda_estimado=valor_venda,
         fonte_venda_estimada=fonte_venda,
     )
+    if arremate_info:
+        inputs.arremate_recente_valor = arremate_info.get("ultimo_valor")
+        inputs.arremate_recente_data = arremate_info.get("ultimo_data") or ""
+        inputs.arremate_recente_endereco = arremate_info.get("ultimo_endereco") or ""
+        inputs.arremate_recente_preco_m2 = arremate_info.get("mediana_preco_m2")
+        inputs.arremate_recente_n_amostra = arremate_info.get("n_amostra") or 0
+    return inputs
 
 
-def analise_rapida(listing: Listing, preco_m2_mercado: Optional[float] = None) -> Optional[tuple[InvestmentInputs, InvestmentResult]]:
-    inputs = montar_inputs_rapidos(listing, preco_m2_mercado)
+def analise_rapida(listing: Listing, preco_m2_mercado: Optional[float] = None,
+                    arremate_info: Optional[dict] = None) -> Optional[tuple[InvestmentInputs, InvestmentResult]]:
+    inputs = montar_inputs_rapidos(listing, preco_m2_mercado, arremate_info)
     if inputs is None:
         return None
     return inputs, calcular(inputs)
