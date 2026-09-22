@@ -108,7 +108,7 @@ body {
 .text-input::placeholder { color: var(--ink-muted); }
 
 table.detail-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-table.detail-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; padding: 0 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; cursor: pointer; }
+table.detail-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; cursor: pointer; position: sticky; top: 0; background: var(--surface); z-index: 2; }
 table.detail-table th:hover { color: var(--ink-secondary); }
 table.detail-table th.num, table.detail-table td.num { text-align: right; font-family: 'Plex Mono Dash', monospace; font-variant-numeric: tabular-nums; }
 table.detail-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
@@ -157,7 +157,7 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
 @media (max-width: 900px) {
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
-.wide-scroll { overflow-x: auto; }
+.wide-scroll { overflow: auto; max-height: 72vh; }
 </style>
 </head>
 <body>
