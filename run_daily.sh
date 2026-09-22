@@ -5,7 +5,7 @@
 set -euo pipefail
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 
-DIR="/Users/luizfelipe/Documents/Cloude_Projetos/leiloes-imoveis"
+DIR="/Users/luizfelipe/leiloes-imoveis"
 cd "$DIR"
 
 LOG="$DIR/logs/run_$(date +%Y-%m-%d_%H-%M-%S).log"
