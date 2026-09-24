@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS imoveis (
     cidade              TEXT,
     estado              TEXT,
     tipo_imovel         TEXT,
+    banco               TEXT,               -- banco vendedor (Itaú, Bradesco, Santander...), quando conhecido — só a Zuk expõe isso hoje
     area_m2             REAL,
     valor_avaliacao     REAL,
     valor_lance_atual   REAL,               -- lance mínimo vigente (1ª ou 2ª praça, o que estiver aberto)

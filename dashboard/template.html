@@ -165,7 +165,7 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
   <header class="masthead">
     <div>
       <h1>Leilões de Imóveis — Oportunidades</h1>
-      <div class="sub">Zukerman, Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento</div>
+      <div class="sub">Zukerman (Itaú, Bradesco, Santander e outros), Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento</div>
     </div>
     <div class="meta">
       <div id="meta-atualizado">—</div>
@@ -189,6 +189,10 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
       <div class="filter-field">
         <label>Fonte</label>
         <select class="month-select" id="f-fonte"><option value="">Todas</option></select>
+      </div>
+      <div class="filter-field">
+        <label>Banco</label>
+        <select class="month-select" id="f-banco"><option value="">Todos</option></select>
       </div>
       <div class="filter-field">
         <label>Categoria</label>
@@ -226,6 +230,7 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
         <thead>
           <tr>
             <th data-key="fonte">Fonte</th>
+            <th data-key="banco">Banco</th>
             <th data-key="categoria">Categoria</th>
             <th data-key="estado">UF</th>
             <th data-key="cidade">Cidade</th>
@@ -248,7 +253,7 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
   <div class="footnotes">
     <div><b>Metodologia:</b> a triagem automática usa premissas genéricas (reforma ≈ 20% da avaliação, 8 meses de posse com IPTU + condomínio estimados nesse período, corretagem de 6% na venda, IR de 15% sobre o ganho) — clique em "ver cálculo" em cada linha pra ver exatamente o que foi considerado, e refaça a conta com números reais antes de decidir dar um lance.</div>
     <div><b>Aviso:</b> não modelamos eventuais dívidas de IPTU/condomínio anteriores ao leilão nem custos de due diligence (matrícula/certidões) — pesquise isso no edital antes de dar lance, já que podem ser herdados pelo arrematante.</div>
-    <div><b>Fontes:</b> Zukerman/Zuk (portalzuk.com.br), Sold (sold.com.br via API Superbid), Caixa (venda-imoveis.caixa.gov.br), Banco do Brasil (via meuarremateleiloes.com.br).</div>
+    <div><b>Fontes:</b> Zukerman/Zuk (portalzuk.com.br — inclui imóveis de Itaú, Bradesco e Santander, leiloeiro oficial desses bancos), Sold (sold.com.br via API Superbid), Caixa (venda-imoveis.caixa.gov.br), Banco do Brasil (via meuarremateleiloes.com.br). O campo "Banco" só é preenchido quando a Zuk identifica o vendedor na busca por banco — os demais imóveis da Zuk (mercado geral, sem filtro de banco) ficam sem essa marcação.</div>
   </div>
 </div>
 
@@ -303,14 +308,17 @@ function renderKpisEResumo() {
 
 function populateFilters() {
   const fontes = [...new Set(DADOS.map(d => d.fonte))].sort();
+  const bancos = [...new Set(DADOS.map(d => d.banco).filter(Boolean))].sort();
   const categorias = [...new Set(DADOS.map(d => d.categoria))].sort();
   const estados = [...new Set(DADOS.map(d => d.estado).filter(Boolean))].sort();
   const statuses = [...new Set(DADOS.map(d => d.status))].sort();
   const selFonte = document.getElementById("f-fonte");
+  const selBanco = document.getElementById("f-banco");
   const selCategoria = document.getElementById("f-categoria");
   const selEstado = document.getElementById("f-estado");
   const selStatus = document.getElementById("f-status");
   fontes.forEach(f => selFonte.insertAdjacentHTML("beforeend", `<option value="${f}">${f}</option>`));
+  bancos.forEach(b => selBanco.insertAdjacentHTML("beforeend", `<option value="${b}">${b}</option>`));
   categorias.forEach(c => selCategoria.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
   estados.forEach(e => selEstado.insertAdjacentHTML("beforeend", `<option value="${e}">${e}</option>`));
   statuses.forEach(s => selStatus.insertAdjacentHTML("beforeend", `<option value="${s}">${STATUS_LABEL[s] || s}</option>`));
@@ -319,6 +327,7 @@ function populateFilters() {
 function currentFilters() {
   return {
     fonte: document.getElementById("f-fonte").value,
+    banco: document.getElementById("f-banco").value,
     categoria: document.getElementById("f-categoria").value,
     estado: document.getElementById("f-estado").value,
     status: document.getElementById("f-status").value,
@@ -331,6 +340,7 @@ function applyFiltersAndSort() {
   const f = currentFilters();
   let rows = DADOS.filter(d => {
     if (f.fonte && d.fonte !== f.fonte) return false;
+    if (f.banco && d.banco !== f.banco) return false;
     if (f.categoria && d.categoria !== f.categoria) return false;
     if (f.estado && d.estado !== f.estado) return false;
     if (f.status && d.status !== f.status) return false;
@@ -452,6 +462,7 @@ function renderTable(rows) {
   tbody.innerHTML = rows.map((r, i) => `
     <tr>
       <td><span class="fonte-tag">${r.fonte}</span></td>
+      <td>${r.banco || "—"}</td>
       <td>${r.categoria || "—"}</td>
       <td>${r.estado || "—"}</td>
       <td>${r.cidade || "—"}</td>
@@ -464,7 +475,7 @@ function renderTable(rows) {
       <td>${r.url ? `<a class="link" href="${r.url}" target="_blank" rel="noopener">ver imóvel →</a>` : "—"}</td>
       <td><a class="link toggle-detalhe" href="#" data-idx="${i}">ver cálculo</a></td>
     </tr>
-    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="12" style="padding:0;background:var(--page);">${detalheHtml(r)}</td></tr>
+    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="13" style="padding:0;background:var(--page);">${detalheHtml(r)}</td></tr>
   `).join("");
   tbody.querySelectorAll(".toggle-detalhe").forEach(a => {
     a.addEventListener("click", (e) => {
@@ -484,7 +495,7 @@ document.querySelectorAll("thead th[data-key]").forEach(th => {
     applyFiltersAndSort();
   });
 });
-["f-fonte", "f-categoria", "f-estado", "f-status", "f-roi"].forEach(id =>
+["f-fonte", "f-banco", "f-categoria", "f-estado", "f-status", "f-roi"].forEach(id =>
   document.getElementById(id).addEventListener("change", applyFiltersAndSort)
 );
 document.getElementById("f-cidade").addEventListener("input", applyFiltersAndSort);

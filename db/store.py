@@ -22,6 +22,7 @@ class Listing:
     cidade: str = ""
     estado: str = ""
     tipo_imovel: str = ""
+    banco: str = ""
     area_m2: Optional[float] = None
     valor_avaliacao: Optional[float] = None
     valor_lance_atual: Optional[float] = None
@@ -45,6 +46,10 @@ def init_db(db_path: Path = DEFAULT_DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA_PATH.read_text())
+        # migração leve pra bases criadas antes da coluna existir
+        colunas = {row[1] for row in conn.execute("PRAGMA table_info(imoveis)")}
+        if "banco" not in colunas:
+            conn.execute("ALTER TABLE imoveis ADD COLUMN banco TEXT")
 
 
 @contextmanager

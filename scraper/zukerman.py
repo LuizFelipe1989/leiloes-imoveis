@@ -40,7 +40,7 @@ def _slug_id(href: str) -> str:
     return href.rstrip("/").split("/")[-1]
 
 
-def _parse_card(card) -> Optional[Listing]:
+def _parse_card(card, banco: str = "") -> Optional[Listing]:
     link = card.select_one("a[href*='/imovel/']")
     if not link:
         return None
@@ -108,6 +108,7 @@ def _parse_card(card) -> Optional[Listing]:
         cidade=cidade,
         estado=estado,
         tipo_imovel=tipo,
+        banco=banco,
         area_m2=area_m2,
         valor_avaliacao=None,  # Zuk não expõe avaliação na listagem; preencher manualmente na análise
         valor_lance_atual=valor_lance,
@@ -119,12 +120,12 @@ def _parse_card(card) -> Optional[Listing]:
     )
 
 
-def _parse_listing_page(html: str) -> list[Listing]:
+def _parse_listing_page(html: str, banco: str = "") -> list[Listing]:
     soup = BeautifulSoup(html, "lxml")
     cards = soup.select("div.card-property.card_lotes_div")
     listings = []
     for card in cards:
-        listing = _parse_card(card)
+        listing = _parse_card(card, banco=banco)
         if listing:
             listings.append(listing)
     return listings
@@ -138,6 +139,34 @@ def buscar(ufs: list[str]) -> list[Listing]:
         resp = requests.get(url, headers=HEADERS, timeout=30)
         resp.raise_for_status()
         listings.extend(_parse_listing_page(resp.text))
+    return listings
+
+
+# páginas por banco vendedor na Zuk (leiloeiro oficial de Itaú, Bradesco e
+# Santander) — não aceitam filtro de UF na URL (testado: o segmento de UF é
+# ignorado e sempre retorna a mesma primeira leva nacional), então filtramos
+# por estado depois de parsear, igual já fazemos pros demais scrapers.
+BANCOS_SLUG = {
+    "Itaú": "banco-itau",
+    "Bradesco": "banco-bradesco",
+    "Santander": "banco-santander",
+}
+
+
+def buscar_por_banco(banco: str) -> list[Listing]:
+    """Busca a primeira leva de imóveis de um banco específico (ver BANCOS_SLUG)."""
+    slug = BANCOS_SLUG[banco]
+    url = f"{BASE_URL}/leilao-de-imoveis/v/{slug}"
+    resp = requests.get(url, headers=HEADERS, timeout=30)
+    resp.raise_for_status()
+    return _parse_listing_page(resp.text, banco=banco)
+
+
+def buscar_bancos(bancos: list[str]) -> list[Listing]:
+    """Busca imóveis de vários bancos (ver BANCOS_SLUG), uma leva nacional cada."""
+    listings: list[Listing] = []
+    for banco in bancos:
+        listings.extend(buscar_por_banco(banco))
     return listings
 
 

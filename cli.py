@@ -60,13 +60,28 @@ def cmd_atualizar(args):
 
     if "zukerman" in args.fontes:
         print(f"[zukerman] buscando {ufs}...")
+        vistos_zukerman: set = set()
         try:
             r = zukerman.buscar(ufs)
             print(f"[zukerman] {len(r)} imóveis")
             todas.extend(r)
-            ids_vistos_por_fonte["zukerman"] = {l.id for l in r}
+            vistos_zukerman |= {l.id for l in r}
         except Exception as e:
             print(f"[zukerman] erro: {e}")
+
+        # bancos que usam a Zuk como leiloeiro oficial (Itaú, Bradesco, Santander) —
+        # a página de cada banco não filtra por UF (só devolve leva nacional única),
+        # então filtramos por estado depois de parsear.
+        for banco in zukerman.BANCOS_SLUG:
+            try:
+                r_banco = [l for l in zukerman.buscar_por_banco(banco) if l.estado in ufs]
+                print(f"[zukerman:{banco}] {len(r_banco)} imóveis (em {ufs})")
+                todas.extend(r_banco)
+                vistos_zukerman |= {l.id for l in r_banco}
+            except Exception as e:
+                print(f"[zukerman:{banco}] erro: {e}")
+        if vistos_zukerman:
+            ids_vistos_por_fonte["zukerman"] = vistos_zukerman
 
     if "sold" in args.fontes:
         print(f"[sold] buscando {ufs}...")
