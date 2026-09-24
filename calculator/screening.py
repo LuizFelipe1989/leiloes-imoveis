@@ -17,7 +17,7 @@ from db.store import Listing
 
 from .model import InvestmentInputs, InvestmentResult, calcular
 
-REFORMA_PCT_AVALIACAO = 0.08     # estimativa genérica de reforma leve/média
+REFORMA_PCT_LANCE = 0.10         # estimativa genérica de reforma, como % do lance (valor pago no leilão)
 HAIRCUT_VENDA_PCT = 0.05         # desconta a avaliação do banco (tende a ser otimista) — usado só quando não há comparáveis
 MESES_POSSE_DEFAULT = 8.0
 CUSTO_DESOCUPACAO_PCT_LANCE = 0.05  # estimativa se o imóvel estiver ocupado
@@ -62,7 +62,7 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
     inputs = InvestmentInputs(
         valor_lance=listing.valor_lance_atual,
         valor_avaliacao=listing.valor_avaliacao,
-        reforma=listing.valor_avaliacao * REFORMA_PCT_AVALIACAO,
+        reforma=listing.valor_lance_atual * REFORMA_PCT_LANCE,
         ocupado=ocupado,
         custo_desocupacao=listing.valor_lance_atual * CUSTO_DESOCUPACAO_PCT_LANCE if ocupado else 0.0,
         meses_posse=MESES_POSSE_DEFAULT,
