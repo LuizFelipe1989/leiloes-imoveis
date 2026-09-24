@@ -220,6 +220,7 @@ def cmd_analisar(args):
                 valor_avaliacao=listing["valor_avaliacao"],
                 ocupado=listing["ocupado"],
                 area_m2=listing["area_m2"],
+                tipo_imovel=listing["tipo_imovel"],
             )
             grupo = mercado.grupo_tipo(listing["tipo_imovel"])
             chave = chave_regiao(listing["estado"], listing["cidade"], listing["bairro"], grupo) if grupo else None

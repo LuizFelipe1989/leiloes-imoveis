@@ -15,12 +15,27 @@ from typing import Optional
 
 from db.store import Listing
 
+from .mercado import grupo_tipo
 from .model import InvestmentInputs, InvestmentResult, calcular
 
-REFORMA_PCT_LANCE = 0.10         # estimativa genérica de reforma, como % do lance (valor pago no leilão)
+# % sobre a AVALIAÇÃO (não o lance): especialistas de leilão (ex: guias de
+# arrematação, calculadoras de viabilidade) calculam reforma como % do valor
+# do imóvel, não do lance — usar o lance como base subestima a reforma
+# justamente nos imóveis com desconto mais forte. 20% reflete o cenário
+# conservador (a maioria dos imóveis de leilão não pode ser vistoriada por
+# dentro antes do lance, risco de surpresa estrutural/instalações antigas);
+# fontes citam faixa de 5% (emergencial, sem vistoria) a 30-35% (reforma completa).
+REFORMA_PCT_AVALIACAO = 0.20
 HAIRCUT_VENDA_PCT = 0.05         # desconta a avaliação do banco (tende a ser otimista) — usado só quando não há comparáveis
 MESES_POSSE_DEFAULT = 8.0
 CUSTO_DESOCUPACAO_PCT_LANCE = 0.05  # estimativa se o imóvel estiver ocupado
+
+# Custos recorrentes durante o período de posse (entre arrematar e revender),
+# hoje ignorados no cálculo mas reais e certos — ao contrário de dívida
+# pré-existente de IPTU/condomínio (também real, mas desconhecida por imóvel,
+# então não modelada; fica só como aviso no dashboard).
+IPTU_PCT_ANO_AVALIACAO = 0.007      # ~0,7% ao ano da avaliação, valor típico de IPTU residencial
+CONDOMINIO_MENSAL_APARTAMENTO = 527.0  # média nacional de taxa condominial (2026); só se aplica a apartamento/flat/etc.
 
 # Bairros grandes/heterogêneos (ex: Butantã em SP cobre da Vila Butantã cara até
 # áreas bem mais simples longe dali) fazem o comparável do QuintoAndar "vazar"
@@ -59,13 +74,17 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
 
     ocupado = listing.ocupado == "sim"
     valor_venda, fonte_venda = _estimar_venda(listing, preco_m2_mercado)
+    iptu_mensal = listing.valor_avaliacao * IPTU_PCT_ANO_AVALIACAO / 12
+    condominio_mensal = CONDOMINIO_MENSAL_APARTAMENTO if grupo_tipo(listing.tipo_imovel) == "apartamento" else 0.0
     inputs = InvestmentInputs(
         valor_lance=listing.valor_lance_atual,
         valor_avaliacao=listing.valor_avaliacao,
-        reforma=listing.valor_lance_atual * REFORMA_PCT_LANCE,
+        reforma=listing.valor_avaliacao * REFORMA_PCT_AVALIACAO,
         ocupado=ocupado,
         custo_desocupacao=listing.valor_lance_atual * CUSTO_DESOCUPACAO_PCT_LANCE if ocupado else 0.0,
         meses_posse=MESES_POSSE_DEFAULT,
+        iptu_mensal=iptu_mensal,
+        condominio_mensal=condominio_mensal,
         valor_venda_estimado=valor_venda,
         fonte_venda_estimada=fonte_venda,
     )
