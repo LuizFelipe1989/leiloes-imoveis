@@ -97,9 +97,49 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
     return inputs
 
 
+def montar_inputs_venda_direta(listing: Listing, preco_m2_mercado: Optional[float] = None) -> Optional[InvestmentInputs]:
+    """Monta InvestmentInputs pra imóvel de VENDA DIRETA (preço fixo, sem lance/disputa).
+
+    Sem avaliação de banco pra comparar (a "venda direta" É o preço final,
+    não uma abertura de disputa) — então a única referência possível de
+    "é um bom preço?" é o valor de mercado por comparáveis (QuintoAndar).
+    Sem comparável (região não coberta, ou terreno/tipo que a Zuk/QuintoAndar
+    não lista), não dá pra avaliar com segurança: retorna None.
+
+    Sem leiloeiro no processo, então sem a comissão de 5% que existe no leilão
+    — os demais custos (ITBI, cartório, reforma, posse, corretagem, IR) são
+    os mesmos.
+    """
+    area = getattr(listing, "area_m2", None)
+    if not listing.valor_lance_atual or not preco_m2_mercado or not area:
+        return None
+
+    valor_mercado = preco_m2_mercado * area
+    ocupado = listing.ocupado == "sim"
+    iptu_mensal = valor_mercado * IPTU_PCT_ANO_AVALIACAO / 12
+    condominio_mensal = CONDOMINIO_MENSAL_APARTAMENTO if grupo_tipo(listing.tipo_imovel) == "apartamento" else 0.0
+    return InvestmentInputs(
+        valor_lance=listing.valor_lance_atual,
+        valor_avaliacao=valor_mercado,
+        comissao_leiloeiro_pct=0.0,
+        reforma=valor_mercado * REFORMA_PCT_AVALIACAO,
+        ocupado=ocupado,
+        custo_desocupacao=listing.valor_lance_atual * CUSTO_DESOCUPACAO_PCT_LANCE if ocupado else 0.0,
+        meses_posse=MESES_POSSE_DEFAULT,
+        iptu_mensal=iptu_mensal,
+        condominio_mensal=condominio_mensal,
+        valor_venda_estimado=valor_mercado,
+        fonte_venda_estimada="comparaveis_quintoandar",
+    )
+
+
 def analise_rapida(listing: Listing, preco_m2_mercado: Optional[float] = None,
-                    arremate_info: Optional[dict] = None) -> Optional[tuple[InvestmentInputs, InvestmentResult]]:
-    inputs = montar_inputs_rapidos(listing, preco_m2_mercado, arremate_info)
+                    arremate_info: Optional[dict] = None,
+                    modalidade: str = "leilao") -> Optional[tuple[InvestmentInputs, InvestmentResult]]:
+    if modalidade == "venda_direta":
+        inputs = montar_inputs_venda_direta(listing, preco_m2_mercado)
+    else:
+        inputs = montar_inputs_rapidos(listing, preco_m2_mercado, arremate_info)
     if inputs is None:
         return None
     return inputs, calcular(inputs)

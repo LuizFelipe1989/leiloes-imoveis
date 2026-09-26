@@ -70,6 +70,10 @@ body {
 }
 .wrap { max-width: 1560px; margin: 0 auto; padding: 40px 28px 64px; }
 
+.modo-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.modo-bar label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; }
+.modo-bar #modo-select { font-weight: 600; color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
 .masthead { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 28px; border-bottom: 1px solid var(--gridline); padding-bottom: 20px; flex-wrap: wrap; }
 .masthead h1 { font-family: 'Source Serif Dash', Georgia, serif; font-weight: 600; font-size: 29px; margin: 0 0 4px; text-wrap: balance; letter-spacing: -0.01em; }
 .masthead .sub { color: var(--ink-secondary); font-size: 13.5px; max-width: 640px; }
@@ -162,10 +166,17 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
 </head>
 <body>
 <div class="wrap">
+  <div class="modo-bar">
+    <label for="modo-select">Perfil de análise</label>
+    <select class="month-select" id="modo-select">
+      <option value="leilao">Leilão</option>
+      <option value="venda_direta">Venda Direta</option>
+    </select>
+  </div>
   <header class="masthead">
     <div>
       <h1>Leilões de Imóveis — Oportunidades</h1>
-      <div class="sub">Zukerman (Itaú, Bradesco, Santander e outros), Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento</div>
+      <div class="sub" id="masthead-sub">Zukerman (Itaú, Bradesco, Santander e outros), Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento</div>
     </div>
     <div class="meta">
       <div id="meta-atualizado">—</div>
@@ -240,9 +251,9 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
             <th data-key="estado">UF</th>
             <th data-key="cidade">Cidade</th>
             <th data-key="bairro">Bairro</th>
-            <th data-key="valor_lance_atual" class="num">Lance</th>
-            <th data-key="valor_avaliacao" class="num">Avaliação</th>
-            <th data-key="desconto_pct" class="num">Desconto</th>
+            <th data-key="valor_lance_atual" class="num" id="th-lance">Lance</th>
+            <th data-key="valor_avaliacao" class="num" id="th-avaliacao">Avaliação</th>
+            <th data-key="desconto_pct" class="num" id="th-desconto">Desconto</th>
             <th data-key="roi_anualizado_pct" class="num">ROI a.a.</th>
             <th data-key="status">Status</th>
             <th>Link</th>
@@ -256,9 +267,9 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
   </section>
 
   <div class="footnotes">
-    <div><b>Metodologia:</b> a triagem automática usa premissas genéricas (reforma ≈ 20% da avaliação, 8 meses de posse com IPTU + condomínio estimados nesse período, corretagem de 6% na venda, IR de 15% sobre o ganho) — clique em "ver cálculo" em cada linha pra ver exatamente o que foi considerado, e refaça a conta com números reais antes de decidir dar um lance.</div>
-    <div><b>Aviso:</b> não modelamos eventuais dívidas de IPTU/condomínio anteriores ao leilão nem custos de due diligence (matrícula/certidões) — pesquise isso no edital antes de dar lance, já que podem ser herdados pelo arrematante.</div>
-    <div><b>Fontes:</b> Zukerman/Zuk (portalzuk.com.br — inclui imóveis de Itaú, Bradesco e Santander, leiloeiro oficial desses bancos), Sold (sold.com.br via API Superbid), Caixa (venda-imoveis.caixa.gov.br), Banco do Brasil (via meuarremateleiloes.com.br). O campo "Banco" só é preenchido quando a Zuk identifica o vendedor na busca por banco — os demais imóveis da Zuk (mercado geral, sem filtro de banco) ficam sem essa marcação.</div>
+    <div><b>Metodologia:</b> a triagem automática usa premissas genéricas (reforma ≈ 20% da avaliação/valor de mercado, 8 meses de posse com IPTU + condomínio estimados nesse período, corretagem de 6% na venda, IR de 15% sobre o ganho) — clique em "ver cálculo" em cada linha pra ver exatamente o que foi considerado, e refaça a conta com números reais antes de decidir. No perfil <b>Venda Direta</b> não há comissão de leiloeiro (não há leiloeiro no processo) e o "desconto"/ROI usa comparáveis de mercado como referência, já que não existe avaliação de banco pra comparar — sem comparável de mercado disponível na região, o imóvel fica sem ROI calculado.</div>
+    <div><b>Aviso:</b> não modelamos eventuais dívidas de IPTU/condomínio anteriores à aquisição nem custos de due diligence (matrícula/certidões) — pesquise isso antes de decidir, já que podem ser herdados pelo comprador.</div>
+    <div><b>Fontes:</b> Zukerman/Zuk (portalzuk.com.br — inclui imóveis de Itaú, Bradesco e Santander, leiloeiro oficial desses bancos), Sold (sold.com.br via API Superbid), Caixa (venda-imoveis.caixa.gov.br), Itaú/Bradesco/Santander/Banco do Brasil — leilão e venda direta (via meuarremateleiloes.com.br). O campo "Banco" só é preenchido quando a fonte identifica o vendedor; imóveis de mercado geral (sem filtro de banco) ficam sem essa marcação.</div>
   </div>
 </div>
 
@@ -267,6 +278,12 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
 
 let sortKey = "roi_anualizado_pct";
 let sortDir = -1;
+let modoAtual = "leilao"; // "leilao" | "venda_direta" — trocado pelo seletor de perfil
+
+const MODO_LABEL = {
+  leilao: {nome: "Leilão", lance: "Lance", avaliacao: "Avaliação", desconto: "Desconto vs. avaliação"},
+  venda_direta: {nome: "Venda Direta", lance: "Preço", avaliacao: "Valor de mercado (estimado)", desconto: "Desconto vs. mercado"},
+};
 
 function brl(v) {
   if (v === null || v === undefined) return "—";
@@ -289,10 +306,11 @@ function statTile(label, value) {
 }
 
 function renderKpisEResumo() {
+  const resumo = RESUMOS[modoAtual];
   document.getElementById("kpi-row").innerHTML = [
-    {label: "Imóveis rastreados", value: RESUMO.total},
-    {label: "Analisados", value: RESUMO.analisados, deltaText: RESUMO.total ? pct(RESUMO.analisados / RESUMO.total * 100) + " do total" : null, deltaClass: "neutral"},
-    {label: "Oportunidades (≥20% a.a.)", value: RESUMO.oportunidades, deltaText: RESUMO.analisados ? pct(RESUMO.oportunidades / RESUMO.analisados * 100) + " dos analisados" : null, deltaClass: "good"},
+    {label: "Imóveis rastreados", value: resumo.total},
+    {label: "Analisados", value: resumo.analisados, deltaText: resumo.total ? pct(resumo.analisados / resumo.total * 100) + " do total" : null, deltaClass: "neutral"},
+    {label: "Oportunidades (≥20% a.a.)", value: resumo.oportunidades, deltaText: resumo.analisados ? pct(resumo.oportunidades / resumo.analisados * 100) + " dos analisados" : null, deltaClass: "good"},
   ].map(k => `
     <div class="kpi-tile">
       <div class="label">${k.label}</div>
@@ -301,29 +319,38 @@ function renderKpisEResumo() {
     </div>
   `).join("");
 
-  document.getElementById("fonte-tiles").innerHTML = Object.entries(RESUMO.por_fonte)
+  document.getElementById("fonte-tiles").innerHTML = Object.entries(resumo.por_fonte)
     .sort((a, b) => b[1] - a[1]).map(([k, n]) => statTile(k, n)).join("");
-  document.getElementById("categoria-tiles").innerHTML = Object.entries(RESUMO.por_categoria)
+  document.getElementById("categoria-tiles").innerHTML = Object.entries(resumo.por_categoria)
     .sort((a, b) => b[1] - a[1]).map(([k, n]) => statTile(k, n)).join("");
 
-  document.getElementById("meta-atualizado").textContent = RESUMO.gerado_em
-    ? "Atualizado em " + new Date(RESUMO.gerado_em).toLocaleString("pt-BR")
+  document.getElementById("meta-atualizado").textContent = resumo.gerado_em
+    ? "Atualizado em " + new Date(resumo.gerado_em).toLocaleString("pt-BR")
     : "";
 }
 
+function dadosDoModo() {
+  return DADOS.filter(d => (d.modalidade || "leilao") === modoAtual);
+}
+
 function populateFilters() {
-  const fontes = [...new Set(DADOS.map(d => d.fonte))].sort();
-  const bancos = [...new Set(DADOS.map(d => d.banco).filter(Boolean))].sort();
-  const categorias = [...new Set(DADOS.map(d => d.categoria))].sort();
-  const tipos = [...new Set(DADOS.map(d => d.tipo))].sort();
-  const estados = [...new Set(DADOS.map(d => d.estado).filter(Boolean))].sort();
-  const statuses = [...new Set(DADOS.map(d => d.status))].sort();
+  const escopo = dadosDoModo();
+  const fontes = [...new Set(escopo.map(d => d.fonte))].sort();
+  const bancos = [...new Set(escopo.map(d => d.banco).filter(Boolean))].sort();
+  const categorias = [...new Set(escopo.map(d => d.categoria))].sort();
+  const tipos = [...new Set(escopo.map(d => d.tipo))].sort();
+  const estados = [...new Set(escopo.map(d => d.estado).filter(Boolean))].sort();
+  const statuses = [...new Set(escopo.map(d => d.status))].sort();
   const selFonte = document.getElementById("f-fonte");
   const selBanco = document.getElementById("f-banco");
   const selCategoria = document.getElementById("f-categoria");
   const selTipo = document.getElementById("f-tipo");
   const selEstado = document.getElementById("f-estado");
   const selStatus = document.getElementById("f-status");
+  // limpa opções da troca de modo anterior, mantendo só "Todos/Todas"
+  [selFonte, selBanco, selCategoria, selTipo, selEstado, selStatus].forEach(sel => {
+    while (sel.options.length > 1) sel.remove(1);
+  });
   fontes.forEach(f => selFonte.insertAdjacentHTML("beforeend", `<option value="${f}">${f}</option>`));
   bancos.forEach(b => selBanco.insertAdjacentHTML("beforeend", `<option value="${b}">${b}</option>`));
   categorias.forEach(c => selCategoria.insertAdjacentHTML("beforeend", `<option value="${c}">${c}</option>`));
@@ -347,7 +374,7 @@ function currentFilters() {
 
 function applyFiltersAndSort() {
   const f = currentFilters();
-  let rows = DADOS.filter(d => {
+  let rows = dadosDoModo().filter(d => {
     if (f.fonte && d.fonte !== f.fonte) return false;
     if (f.banco && d.banco !== f.banco) return false;
     if (f.categoria && d.categoria !== f.categoria) return false;
@@ -511,6 +538,33 @@ document.querySelectorAll("thead th[data-key]").forEach(th => {
 );
 document.getElementById("f-cidade").addEventListener("input", applyFiltersAndSort);
 
+const MODO_SUB = {
+  leilao: "Zukerman (Itaú, Bradesco, Santander e outros), Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento",
+  venda_direta: "Imóveis à venda por preço fixo (sem disputa de lance) — hoje só o Banco do Brasil, via Meu Arremate Leilões. Sem avaliação bancária pra comparar, o desconto/ROI usa comparáveis de mercado (QuintoAndar) como referência.",
+};
+
+function aplicarRotulosDoModo() {
+  const l = MODO_LABEL[modoAtual];
+  document.getElementById("th-lance").textContent = l.lance;
+  document.getElementById("th-avaliacao").textContent = l.avaliacao;
+  document.getElementById("th-desconto").textContent = l.desconto;
+  document.getElementById("masthead-sub").textContent = MODO_SUB[modoAtual];
+}
+
+function trocarModo(novoModo) {
+  modoAtual = novoModo;
+  ["f-fonte", "f-banco", "f-categoria", "f-tipo", "f-estado", "f-status"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("f-roi").value = "";
+  document.getElementById("f-cidade").value = "";
+  aplicarRotulosDoModo();
+  populateFilters();
+  renderKpisEResumo();
+  applyFiltersAndSort();
+}
+
+document.getElementById("modo-select").addEventListener("change", (e) => trocarModo(e.target.value));
+
+aplicarRotulosDoModo();
 populateFilters();
 renderKpisEResumo();
 applyFiltersAndSort();

@@ -23,6 +23,7 @@ class Listing:
     estado: str = ""
     tipo_imovel: str = ""
     banco: str = ""
+    modalidade: str = "leilao"  # leilao | venda_direta
     area_m2: Optional[float] = None
     valor_avaliacao: Optional[float] = None
     valor_lance_atual: Optional[float] = None
@@ -46,10 +47,27 @@ def init_db(db_path: Path = DEFAULT_DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA_PATH.read_text())
-        # migração leve pra bases criadas antes da coluna existir
+        # migração leve pra bases criadas antes das colunas existirem
         colunas = {row[1] for row in conn.execute("PRAGMA table_info(imoveis)")}
         if "banco" not in colunas:
             conn.execute("ALTER TABLE imoveis ADD COLUMN banco TEXT")
+        if "modalidade" not in colunas:
+            conn.execute("ALTER TABLE imoveis ADD COLUMN modalidade TEXT NOT NULL DEFAULT 'leilao'")
+        # scraper/bancodobrasil.py virou scraper/leilaoimovel.py (agrega vários
+        # bancos, não só o BB) — migra o fonte/id de quem já tinha sido salvo
+        # com o nome antigo, senão essas linhas voltariam como "novas" duplicadas.
+        prefixo_antigo = "bancodobrasil:"
+        conn.execute(
+            "UPDATE analises SET imovel_id = 'leilaoimovel:' || substr(imovel_id, ?) "
+            "WHERE imovel_id LIKE 'bancodobrasil:%'",
+            (len(prefixo_antigo) + 1,),
+        )
+        conn.execute(
+            "UPDATE imoveis SET id = 'leilaoimovel:' || substr(id, ?), fonte = 'leilaoimovel', "
+            "banco = CASE WHEN banco IS NULL OR banco = '' THEN 'Banco do Brasil' ELSE banco END "
+            "WHERE fonte = 'bancodobrasil'",
+            (len(prefixo_antigo) + 1,),
+        )
 
 
 @contextmanager

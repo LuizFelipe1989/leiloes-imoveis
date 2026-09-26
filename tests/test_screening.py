@@ -8,7 +8,8 @@ from calculator.screening import montar_inputs_rapidos, DESVIO_MAXIMO_VS_AVALIAC
 
 
 def _listing(**kwargs):
-    base = dict(valor_lance_atual=200_000, valor_avaliacao=250_000, ocupado="nao", area_m2=50)
+    base = dict(valor_lance_atual=200_000, valor_avaliacao=250_000, ocupado="nao", area_m2=50,
+                tipo_imovel="Apartamento")
     base.update(kwargs)
     return SimpleNamespace(**base)
 

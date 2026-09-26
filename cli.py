@@ -23,7 +23,7 @@ from db import (
     marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada,
 )
 from db.store import Listing
-from scraper import zukerman, sold, bancodobrasil
+from scraper import zukerman, sold, leilaoimovel
 from scraper.filters import eh_residencial_ou_terreno
 
 CAIXA_SCRIPT = Path(__file__).parent / "scraper" / "caixa.py"
@@ -103,15 +103,16 @@ def cmd_atualizar(args):
         except Exception as e:
             print(f"[caixa] erro: {e}")
 
-    if "bancodobrasil" in args.fontes:
-        print(f"[bancodobrasil] buscando {ufs}...")
+    if "leilaoimovel" in args.fontes:
+        print(f"[leilaoimovel] buscando {ufs} ({', '.join(leilaoimovel.BANCOS_SLUG)})...")
         try:
-            r = bancodobrasil.buscar(estados=ufs)
-            print(f"[bancodobrasil] {len(r)} imóveis")
+            r = leilaoimovel.buscar(estados=ufs)
+            n_vd = sum(1 for l in r if l.modalidade == "venda_direta")
+            print(f"[leilaoimovel] {len(r)} imóveis ({n_vd} venda direta, {len(r) - n_vd} leilão)")
             todas.extend(r)
-            ids_vistos_por_fonte["bancodobrasil"] = {l.id for l in r}
+            ids_vistos_por_fonte["leilaoimovel"] = {l.id for l in r}
         except Exception as e:
-            print(f"[bancodobrasil] erro: {e}")
+            print(f"[leilaoimovel] erro: {e}")
 
     antes = len(todas)
     # foco atual: só residencial e terreno (sem salas/imóveis comerciais)
@@ -239,12 +240,15 @@ def cmd_analisar(args):
             )
             grupo = mercado.grupo_tipo(listing["tipo_imovel"])
             chave = chave_regiao(listing["estado"], listing["cidade"], listing["bairro"], grupo) if grupo else None
-            arremate_info = arremates.resumo_regiao(
+            modalidade = listing["modalidade"]
+            # arremate recente é "quanto um leilão parecido de fato pagou" — não
+            # faz sentido como referência pra venda direta (preço fixo, sem disputa)
+            arremate_info = None if modalidade == "venda_direta" else arremates.resumo_regiao(
                 indice_arremates, listing["estado"], listing["cidade"], listing["tipo_imovel"]
             )
             resultado = analise_rapida(
                 l, preco_m2_mercado=preco_m2_por_regiao.get(chave) if chave else None,
-                arremate_info=arremate_info,
+                arremate_info=arremate_info, modalidade=modalidade,
             )
             if resultado is None:
                 continue
@@ -277,7 +281,7 @@ def main():
 
     p_atualizar = sub.add_parser("atualizar", help="Busca imóveis nos sites configurados")
     p_atualizar.add_argument("--fontes", nargs="+", default=["zukerman", "sold"],
-                              choices=["zukerman", "sold", "caixa", "bancodobrasil"])
+                              choices=["zukerman", "sold", "caixa", "leilaoimovel"])
     p_atualizar.add_argument("--ufs", nargs="+", default=["SP", "MG"])
     p_atualizar.set_defaults(func=cmd_atualizar)
 

@@ -137,7 +137,7 @@ só por não termos conseguido buscar de novo.
 | **Sold** (`scraper/sold.py`) | API pública da Superbid (`offer-query.superbid.net`), JSON estruturado, sem proteção anti-bot. | Fonte mais rica: já vem com `referenceValue` (avaliação) e `currentMinBid` (lance mínimo real). |
 | **Zukerman/Zuk** (`scraper/zukerman.py`) | HTML estático via `requests` + BeautifulSoup. | Não expõe "valor de avaliação" na listagem — preencher manualmente na análise fina. Pega só a primeira leva de resultados por estado (ver limitações). |
 | **Caixa** (`scraper/caixa.py`) | Baixa o CSV oficial (`Lista_imoveis_<UF>.csv`) publicado pela Caixa. | **Precisa do Playwright com uma janela de navegador de verdade** (`headless=False`) — o domínio usa Radware Bot Manager e bloqueia `requests`/`curl` e até Chromium headless. |
-| **Banco do Brasil** (`scraper/bancodobrasil.py`) | HTML estático do agregador `meuarremateleiloes.com.br` (leilaoimovel.com.br), sem proteção anti-bot. | O BB não tem portal próprio como a Caixa — usa leiloeiros terceirizados. Esse agregador parece ser do mesmo grupo da Priscila Perini/Smart Leilões (assets em `/img/perini/...`). Cobre "Venda Direta" (sem valor de avaliação separado) e "Leilão Extrajudicial" (com desconto). O parâmetro `banco_slug` permite reusar pra outros bancos no mesmo agregador. |
+| **Leilão Imóvel** (`scraper/leilaoimovel.py`) | HTML estático do agregador `meuarremateleiloes.com.br` (leilaoimovel.com.br), sem proteção anti-bot. | Cobre Banco do Brasil, Itaú, Bradesco e Santander (ver `BANCOS_SLUG`) — nenhum desses bancos tem portal próprio de leilão como a Caixa, usam leiloeiros terceirizados. Esse agregador parece ser do mesmo grupo da Priscila Perini/Smart Leilões (assets em `/img/perini/...`). Mistura "Venda Direta" (preço fixo, sem avaliação de banco pra comparar — só o BB expõe isso hoje nesse agregador) e "Leilão Extrajudicial" (com desconto vs. avaliação) — cada imóvel vem marcado com `modalidade`. |
 
 ## Limitações conhecidas (v1)
 
@@ -164,10 +164,12 @@ só por não termos conseguido buscar de novo.
 
 ## Próximos passos sugeridos
 
-- Adicionar outros bancos no `meuarremateleiloes.com.br` reusando
-  `bancodobrasil.buscar(banco_slug="...")` com o slug de cada um (Itaú/Bradesco/
-  Santander já aparecem também via Zukerman e Sold, então tem sobreposição —
-  vale checar duplicidade por endereço antes de crescer aqui).
+- Achar a venda direta de Itaú/Bradesco/Santander (hoje só o BB expõe isso no
+  `meuarremateleiloes.com.br`) — os outros bancos têm venda direta em outro
+  lugar do próprio site ou em outra fonte, ainda não mapeado.
+- Itaú/Bradesco/Santander aparecem tanto via Zukerman (Zuk) quanto via
+  `leilaoimovel.py` — tem sobreposição, vale checar duplicidade por endereço
+  antes de crescer mais aqui.
 - Adicionar mais sites (Resale, Mega Leilões, Superbid direto) seguindo o
   mesmo padrão: um módulo em `scraper/`, retornando `db.store.Listing`.
 - Guardar o histórico de preço/lance por imóvel ao longo do tempo (hoje o
