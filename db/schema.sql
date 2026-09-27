@@ -22,7 +22,18 @@ CREATE TABLE IF NOT EXISTS imoveis (
     edital_url          TEXT,
     status              TEXT NOT NULL DEFAULT 'novo',  -- novo | analisado | descartado | arrematado | vendido | encerrado (sumiu da fonte ou data já passou)
     primeira_vez_visto  TEXT NOT NULL,
-    ultima_atualizacao  TEXT NOT NULL
+    ultima_atualizacao  TEXT NOT NULL,
+    -- enriquecimento via smartleiloescaixa.com.br (revenda/portal da Caixa) —
+    -- nulo quando desconhecido/não veio dessa fonte; ver scraper/smartleiloes.py
+    quartos             INTEGER,
+    garagem             INTEGER,
+    aceita_fgts             INTEGER,  -- 0/1
+    aceita_consorcio        INTEGER,
+    aceita_financiamento    INTEGER,
+    aceita_parcelamento     INTEGER,
+    tem_acao_judicial       INTEGER,  -- 0/1/NULL (NULL = desconhecido, não "não tem")
+    lat                 REAL,
+    lng                 REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_imoveis_fonte ON imoveis(fonte);

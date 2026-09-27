@@ -11,6 +11,8 @@ from .store import (
     set_comparavel_cache,
     marcar_encerrados_por_ausencia,
     marcar_encerrados_por_data_passada,
+    enriquecer_imovel,
+    backfill_se_vazio,
 )
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "set_comparavel_cache",
     "marcar_encerrados_por_ausencia",
     "marcar_encerrados_por_data_passada",
+    "enriquecer_imovel",
+    "backfill_se_vazio",
 ]

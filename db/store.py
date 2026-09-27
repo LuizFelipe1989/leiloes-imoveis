@@ -33,6 +33,16 @@ class Listing:
     url: str = ""
     imagem_url: str = ""
     edital_url: str = ""
+    # enriquecimento via smartleiloescaixa.com.br — ver scraper/smartleiloes.py
+    quartos: Optional[int] = None
+    garagem: Optional[int] = None
+    aceita_fgts: Optional[bool] = None
+    aceita_consorcio: Optional[bool] = None
+    aceita_financiamento: Optional[bool] = None
+    aceita_parcelamento: Optional[bool] = None
+    tem_acao_judicial: Optional[bool] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
     @property
     def id(self) -> str:
@@ -53,6 +63,14 @@ def init_db(db_path: Path = DEFAULT_DB_PATH) -> None:
             conn.execute("ALTER TABLE imoveis ADD COLUMN banco TEXT")
         if "modalidade" not in colunas:
             conn.execute("ALTER TABLE imoveis ADD COLUMN modalidade TEXT NOT NULL DEFAULT 'leilao'")
+        for coluna, tipo in [
+            ("quartos", "INTEGER"), ("garagem", "INTEGER"), ("aceita_fgts", "INTEGER"),
+            ("aceita_consorcio", "INTEGER"), ("aceita_financiamento", "INTEGER"),
+            ("aceita_parcelamento", "INTEGER"), ("tem_acao_judicial", "INTEGER"),
+            ("lat", "REAL"), ("lng", "REAL"),
+        ]:
+            if coluna not in colunas:
+                conn.execute(f"ALTER TABLE imoveis ADD COLUMN {coluna} {tipo}")
         # scraper/bancodobrasil.py virou scraper/leilaoimovel.py (agrega vários
         # bancos, não só o BB) — migra o fonte/id de quem já tinha sido salvo
         # com o nome antigo, senão essas linhas voltariam como "novas" duplicadas.
@@ -82,6 +100,17 @@ def connect(db_path: Path = DEFAULT_DB_PATH):
         conn.close()
 
 
+# Campos preenchidos só pelo enriquecimento do Smart Leilões (ver
+# scraper/smartleiloes.py e enriquecer_imovel abaixo) — de propósito FORA do
+# UPDATE do upsert_listing comum: as fontes normais (caixa.py, zukerman.py...)
+# nem sabem desses campos, então um re-scrape rotineiro sempre os traria como
+# None e apagaria o enriquecimento já feito se entrassem no UPDATE geral.
+CAMPOS_ENRIQUECIMENTO = (
+    "quartos", "garagem", "aceita_fgts", "aceita_consorcio",
+    "aceita_financiamento", "aceita_parcelamento", "tem_acao_judicial", "lat", "lng",
+)
+
+
 def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
     now = _now()
     row = conn.execute("SELECT id FROM imoveis WHERE id = ?", (listing.id,)).fetchone()
@@ -97,8 +126,9 @@ def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
         conn.execute(f"INSERT INTO imoveis ({cols}) VALUES ({placeholders})", tuple(data.values()))
     else:
         data["ultima_atualizacao"] = now
-        set_clause = ", ".join(f"{k} = ?" for k in data if k != "id")
-        values = [v for k, v in data.items() if k != "id"] + [listing.id]
+        campos_update = {k: v for k, v in data.items() if k != "id" and k not in CAMPOS_ENRIQUECIMENTO}
+        set_clause = ", ".join(f"{k} = ?" for k in campos_update)
+        values = list(campos_update.values()) + [listing.id]
         conn.execute(f"UPDATE imoveis SET {set_clause} WHERE id = ?", values)
 
 
@@ -108,6 +138,30 @@ def upsert_listings(conn: sqlite3.Connection, listings: Iterable[Listing]) -> in
         upsert_listing(conn, listing)
         count += 1
     return count
+
+
+def enriquecer_imovel(conn: sqlite3.Connection, imovel_id: str, campos: dict) -> bool:
+    """Atualiza só os campos de enriquecimento (CAMPOS_ENRIQUECIMENTO) de um
+    imóvel JÁ EXISTENTE, sem tocar no resto (que vem da fonte oficial). Não
+    insere linha nova — quem chama decide isso separadamente. Retorna True se
+    o imóvel existia e foi atualizado."""
+    campos = {k: v for k, v in campos.items() if k in CAMPOS_ENRIQUECIMENTO and v is not None}
+    if not campos:
+        return conn.execute("SELECT 1 FROM imoveis WHERE id = ?", (imovel_id,)).fetchone() is not None
+    set_clause = ", ".join(f"{k} = ?" for k in campos)
+    cur = conn.execute(f"UPDATE imoveis SET {set_clause} WHERE id = ?", list(campos.values()) + [imovel_id])
+    return cur.rowcount > 0
+
+
+def backfill_se_vazio(conn: sqlite3.Connection, imovel_id: str, campo: str, valor) -> None:
+    """Preenche `campo` só se ele estiver vazio (NULL/'''/0) no imóvel já
+    existente — nunca sobrescreve um valor que a fonte oficial já forneceu."""
+    if valor in (None, ""):
+        return
+    conn.execute(
+        f"UPDATE imoveis SET {campo} = ? WHERE id = ? AND ({campo} IS NULL OR {campo} = '' OR {campo} = 0)",
+        (valor, imovel_id),
+    )
 
 
 def save_analise(conn: sqlite3.Connection, imovel_id: str, inputs: dict, resultado) -> None:

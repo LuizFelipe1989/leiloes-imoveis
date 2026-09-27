@@ -472,9 +472,34 @@ function arremateHtml(premissas) {
     </div>`;
 }
 
+function infoAdicionaisHtml(r) {
+  const linhas = [];
+  if (r.praca) linhas.push(["Modalidade de venda (Caixa)", r.praca]);
+  if (r.quartos) linhas.push(["Quartos", r.quartos]);
+  if (r.garagem) linhas.push(["Vagas de garagem", r.garagem]);
+  const pagamentos = [
+    r.aceita_fgts ? "FGTS" : null,
+    r.aceita_financiamento ? "Financiamento habitacional" : null,
+    r.aceita_consorcio ? "Consórcio" : null,
+    r.aceita_parcelamento ? "Parcelamento direto" : null,
+  ].filter(Boolean);
+  if (pagamentos.length) linhas.push(["Aceita", pagamentos.join(", ")]);
+  if (r.lat && r.lng) linhas.push(["Coordenadas", `<a class="link" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${r.lat},${r.lng}">${r.lat.toFixed(5)}, ${r.lng.toFixed(5)} ↗</a>`]);
+  const avisoJudicial = r.tem_acao_judicial ? `<div class="detalhe-linha" style="color:var(--roi-bad-ink,#b3261e);"><span class="k">⚠ Ação judicial</span><span class="v">Consta pendência — verifique o edital antes de dar lance</span></div>` : "";
+  if (!linhas.length && !avisoJudicial) return "";
+  return `
+    <div class="detalhe-group">
+      <div class="titulo">Informações adicionais (Smart Leilões)</div>
+      ${linhas.map(([k, v]) => `<div class="detalhe-linha"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}
+      ${avisoJudicial}
+    </div>`;
+}
+
 function detalheHtml(r) {
+  const infoAdicionais = infoAdicionaisHtml(r);
   if (!r.premissas || !r.detalhe) {
-    return `<div class="detalhe-vazio">Ainda sem análise (triagem automática não conseguiu calcular — falta lance ou avaliação).</div>`;
+    return `<div class="detalhe-vazio">Ainda sem análise (triagem automática não conseguiu calcular — falta lance ou avaliação).</div>
+    ${infoAdicionais ? `<div class="detalhe-grid">${infoAdicionais}</div>` : ""}`;
   }
   return `
     <div class="detalhe-grid">
@@ -485,6 +510,7 @@ function detalheHtml(r) {
       ${grupoDetalhe("Resultado do cálculo", r.detalhe, ["custo_total_aquisicao","custo_total_posse",
         "investimento_total","valor_liquido_venda","lucro_bruto","imposto_ganho_capital",
         "lucro_liquido","roi_pct","roi_anualizado_pct"])}
+      ${infoAdicionais}
     </div>
     ${arremateHtml(r.premissas)}
     <div class="detalhe-nota">

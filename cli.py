@@ -21,9 +21,10 @@ from db import (
     connect, save_analise, upsert_listings, listar_com_ultima_analise,
     chave_regiao, get_comparavel_cache, set_comparavel_cache,
     marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada,
+    enriquecer_imovel, backfill_se_vazio,
 )
-from db.store import Listing
-from scraper import zukerman, sold, leilaoimovel
+from db.store import Listing, upsert_listing
+from scraper import zukerman, sold, leilaoimovel, smartleiloes
 from scraper.filters import eh_residencial_ou_terreno
 
 CAIXA_SCRIPT = Path(__file__).parent / "scraper" / "caixa.py"
@@ -114,6 +115,15 @@ def cmd_atualizar(args):
         except Exception as e:
             print(f"[leilaoimovel] erro: {e}")
 
+    registros_smart_leiloes = []
+    if "smartleiloes" in args.fontes:
+        print(f"[smartleiloes] buscando {ufs} (enriquecimento + gaps da Caixa)...")
+        try:
+            registros_smart_leiloes = smartleiloes.buscar(ufs)
+            print(f"[smartleiloes] {len(registros_smart_leiloes)} imóveis encontrados")
+        except Exception as e:
+            print(f"[smartleiloes] erro: {e}")
+
     antes = len(todas)
     # foco atual: só residencial e terreno (sem salas/imóveis comerciais)
     todas = [l for l in todas if eh_residencial_ou_terreno(l.tipo_imovel)]
@@ -122,6 +132,52 @@ def cmd_atualizar(args):
     with connect() as conn:
         n = upsert_listings(conn, todas)
         print(f"Total salvo/atualizado no banco: {n}")
+
+        if registros_smart_leiloes:
+            n_enriquecidos = 0
+            n_novos = 0
+            n_ignorados_comerciais = 0
+            # Smart Leilões só lista imóveis ativos da Caixa — então "apareceu na
+            # busca de hoje" também conta como "visto" pra fonte "caixa", ao lado
+            # do que o scraper/caixa.py oficial trouxe. Sem isso, um imóvel que
+            # o Smart Leilões confirma como ativo mas que o scraper oficial não
+            # trouxe nessa rodada (gap pontual, paginação, etc.) seria marcado
+            # como encerrado por "ausência" já na mesma execução — foi
+            # exatamente o que aconteceu com os 304 imóveis novos na primeira
+            # versão disso (inseridos e imediatamente fechados no mesmo run).
+            vistos_smart_leiloes = ids_vistos_por_fonte.setdefault("caixa", set())
+            for r in registros_smart_leiloes:
+                if not r["id_no_site"]:
+                    continue
+                imovel_id = f"caixa:{r['id_no_site']}"
+                vistos_smart_leiloes.add(imovel_id)
+                if enriquecer_imovel(conn, imovel_id, r):
+                    # já existe (veio do scraper/caixa.py oficial) — só enriquece,
+                    # nunca sobrescreve endereco/bairro/valores que já temos
+                    backfill_se_vazio(conn, imovel_id, "area_m2", r["area_m2"])
+                    backfill_se_vazio(conn, imovel_id, "praca", r["praca"])
+                    n_enriquecidos += 1
+                else:
+                    # Smart Leilões achou um imóvel da Caixa que nosso próprio
+                    # scraper ainda não tinha (gap de cobertura, não duplicata)
+                    if not eh_residencial_ou_terreno(r["tipo_imovel"]):
+                        n_ignorados_comerciais += 1
+                        continue
+                    upsert_listing(conn, Listing(
+                        fonte="caixa", id_no_site=r["id_no_site"], titulo=r["titulo"],
+                        endereco=r["endereco"], bairro=r["bairro"], cidade=r["cidade"],
+                        estado=r["estado"], tipo_imovel=r["tipo_imovel"], area_m2=r["area_m2"],
+                        modalidade=r["modalidade"], valor_avaliacao=r["valor_avaliacao"],
+                        valor_lance_atual=r["valor_lance_atual"], praca=r["praca"], url=r["url"],
+                        quartos=r["quartos"], garagem=r["garagem"], aceita_fgts=r["aceita_fgts"],
+                        aceita_consorcio=r["aceita_consorcio"], aceita_financiamento=r["aceita_financiamento"],
+                        aceita_parcelamento=r["aceita_parcelamento"], tem_acao_judicial=r["tem_acao_judicial"],
+                        lat=r["lat"], lng=r["lng"],
+                    ))
+                    n_novos += 1
+            print(f"[smartleiloes] {n_enriquecidos} imóveis já existentes enriquecidos, "
+                  f"{n_novos} novos (gaps da Caixa que não tínhamos), "
+                  f"{n_ignorados_comerciais} novos ignorados (comercial)")
 
         # imóvel que sumiu da fonte (não veio nessa leva) = leilão/venda não está
         # mais disponível — usa a lista CRUA (ids_vistos_por_fonte), não a `todas`
@@ -281,7 +337,7 @@ def main():
 
     p_atualizar = sub.add_parser("atualizar", help="Busca imóveis nos sites configurados")
     p_atualizar.add_argument("--fontes", nargs="+", default=["zukerman", "sold"],
-                              choices=["zukerman", "sold", "caixa", "leilaoimovel"])
+                              choices=["zukerman", "sold", "caixa", "leilaoimovel", "smartleiloes"])
     p_atualizar.add_argument("--ufs", nargs="+", default=["SP", "MG"])
     p_atualizar.set_defaults(func=cmd_atualizar)
 
