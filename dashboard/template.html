@@ -115,6 +115,9 @@ table.detail-table { width: 100%; border-collapse: collapse; font-size: 12.5px; 
 table.detail-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; cursor: pointer; position: sticky; top: 0; background: var(--surface); z-index: 2; }
 table.detail-table th:hover { color: var(--ink-secondary); }
 table.detail-table th.num, table.detail-table td.num { text-align: right; font-family: 'Plex Mono Dash', monospace; font-variant-numeric: tabular-nums; }
+table.detail-table .col-bairro { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+table.detail-table .col-cidade { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+table.detail-table td.col-bairro, table.detail-table td.col-cidade { cursor: default; }
 table.detail-table td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
 table.detail-table tr.detail-row td { white-space: normal; }
 table.detail-table tbody tr:hover > td { background: var(--page); }
@@ -249,8 +252,8 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
             <th data-key="categoria">Categoria</th>
             <th data-key="tipo">Tipo</th>
             <th data-key="estado">UF</th>
-            <th data-key="cidade">Cidade</th>
-            <th data-key="bairro">Bairro</th>
+            <th data-key="cidade" class="col-cidade">Cidade</th>
+            <th data-key="bairro" class="col-bairro">Bairro</th>
             <th data-key="valor_lance_atual" class="num" id="th-lance">Lance</th>
             <th data-key="valor_avaliacao" class="num" id="th-avaliacao">Avaliação</th>
             <th data-key="desconto_pct" class="num" id="th-desconto">Desconto</th>
@@ -281,8 +284,8 @@ let sortDir = -1;
 let modoAtual = "leilao"; // "leilao" | "venda_direta" — trocado pelo seletor de perfil
 
 const MODO_LABEL = {
-  leilao: {nome: "Leilão", lance: "Lance", avaliacao: "Avaliação", desconto: "Desconto vs. avaliação"},
-  venda_direta: {nome: "Venda Direta", lance: "Preço", avaliacao: "Valor de mercado (estimado)", desconto: "Desconto vs. mercado"},
+  leilao: {nome: "Leilão", lance: "Lance", avaliacao: "Avaliação", desconto: "Desconto"},
+  venda_direta: {nome: "Venda Direta", lance: "Preço", avaliacao: "Val. mercado (est.)", desconto: "Desconto"},
 };
 
 function brl(v) {
@@ -529,8 +532,8 @@ function renderTable(rows) {
       <td>${r.categoria || "—"}</td>
       <td>${r.tipo || "—"}</td>
       <td>${r.estado || "—"}</td>
-      <td>${r.cidade || "—"}</td>
-      <td>${r.bairro || "—"}</td>
+      <td class="col-cidade" title="${r.cidade || ""}">${r.cidade || "—"}</td>
+      <td class="col-bairro" title="${r.bairro || ""}">${r.bairro || "—"}</td>
       <td class="num">${brl(r.valor_lance_atual)}</td>
       <td class="num">${brl(r.valor_avaliacao)}</td>
       <td class="num">${pct(r.desconto_pct)}</td>
