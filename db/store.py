@@ -153,6 +153,29 @@ def enriquecer_imovel(conn: sqlite3.Connection, imovel_id: str, campos: dict) ->
     return cur.rowcount > 0
 
 
+def promover_para_venda_direta(conn: sqlite3.Connection, imovel_id: str) -> bool:
+    """Promove um imóvel de 'leilao' pra 'venda_direta' (nunca o contrário —
+    ver scraper/smartleiloes.py, que é quem sabe a modalidade de venda real
+    da Caixa). Se o imóvel já tinha sido analisado com o modelo de leilão
+    (com comissão de leiloeiro, avaliação do banco como referência etc.),
+    apaga essa análise (não faz sentido pra venda direta) e volta o imóvel
+    pra 'novo' pra ser recalculado com o modelo certo na próxima
+    `cli.py analisar` — sem isso, `listar_com_ultima_analise` continuaria
+    juntando a análise antiga (do modelo errado) até uma nova ficar pronta,
+    já que ela sempre pega a mais recente independente do status do imóvel.
+    Retorna True se promoveu."""
+    row = conn.execute("SELECT modalidade, status FROM imoveis WHERE id = ?", (imovel_id,)).fetchone()
+    if row is None or row["modalidade"] == "venda_direta":
+        return False
+    novo_status = "novo" if row["status"] == "analisado" else row["status"]
+    conn.execute(
+        "UPDATE imoveis SET modalidade = 'venda_direta', status = ? WHERE id = ?",
+        (novo_status, imovel_id),
+    )
+    conn.execute("DELETE FROM analises WHERE imovel_id = ?", (imovel_id,))
+    return True
+
+
 def backfill_se_vazio(conn: sqlite3.Connection, imovel_id: str, campo: str, valor) -> None:
     """Preenche `campo` só se ele estiver vazio (NULL/'''/0) no imóvel já
     existente — nunca sobrescreve um valor que a fonte oficial já forneceu."""

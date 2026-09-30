@@ -13,6 +13,7 @@ from .store import (
     marcar_encerrados_por_data_passada,
     enriquecer_imovel,
     backfill_se_vazio,
+    promover_para_venda_direta,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "marcar_encerrados_por_data_passada",
     "enriquecer_imovel",
     "backfill_se_vazio",
+    "promover_para_venda_direta",
 ]
