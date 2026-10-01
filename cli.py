@@ -167,7 +167,7 @@ def cmd_atualizar(args):
                         n_ignorados_comerciais += 1
                         continue
                     upsert_listing(conn, Listing(
-                        fonte="caixa", id_no_site=r["id_no_site"], titulo=r["titulo"],
+                        fonte="caixa", id_no_site=r["id_no_site"], banco="Caixa", titulo=r["titulo"],
                         endereco=r["endereco"], bairro=r["bairro"], cidade=r["cidade"],
                         estado=r["estado"], tipo_imovel=r["tipo_imovel"], area_m2=r["area_m2"],
                         modalidade=r["modalidade"], valor_avaliacao=r["valor_avaliacao"],

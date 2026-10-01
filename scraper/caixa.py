@@ -116,6 +116,7 @@ def _row_to_listing(row: dict) -> Optional[Listing]:
     return Listing(
         fonte="caixa",
         id_no_site=id_imovel,
+        banco="Caixa",
         titulo=descricao[:200],
         endereco=row.get("Endereço", "").strip(),
         bairro=row.get("Bairro", "").strip(),

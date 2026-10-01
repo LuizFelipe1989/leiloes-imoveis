@@ -86,6 +86,11 @@ def init_db(db_path: Path = DEFAULT_DB_PATH) -> None:
             "WHERE fonte = 'bancodobrasil'",
             (len(prefixo_antigo) + 1,),
         )
+        # scraper/caixa.py só passou a marcar banco="Caixa" depois — sem isso o
+        # filtro "Banco" do dashboard não tinha como separar Caixa de Itaú/
+        # Bradesco/Santander/BB no perfil Venda Direta (ficava sem opção pra
+        # filtrar por Caixa, já que o campo vinha vazio).
+        conn.execute("UPDATE imoveis SET banco = 'Caixa' WHERE fonte = 'caixa' AND (banco IS NULL OR banco = '')")
 
 
 @contextmanager
