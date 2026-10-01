@@ -21,7 +21,7 @@ from db import (
     connect, save_analise, upsert_listings, listar_com_ultima_analise,
     chave_regiao, get_comparavel_cache, set_comparavel_cache,
     marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada,
-    enriquecer_imovel, backfill_se_vazio, promover_para_venda_direta,
+    enriquecer_imovel, backfill_se_vazio, sincronizar_modalidade,
 )
 from db.store import Listing, upsert_listing
 from scraper import zukerman, sold, leilaoimovel, smartleiloes
@@ -137,7 +137,7 @@ def cmd_atualizar(args):
             n_enriquecidos = 0
             n_novos = 0
             n_ignorados_comerciais = 0
-            n_promovidos_venda_direta = 0
+            n_modalidade_sincronizada = {"venda_direta": 0, "venda_online": 0}
             # Smart Leilões só lista imóveis ativos da Caixa — então "apareceu na
             # busca de hoje" também conta como "visto" pra fonte "caixa", ao lado
             # do que o scraper/caixa.py oficial trouxe. Sem isso, um imóvel que
@@ -157,8 +157,8 @@ def cmd_atualizar(args):
                     # nunca sobrescreve endereco/bairro/valores que já temos
                     backfill_se_vazio(conn, imovel_id, "area_m2", r["area_m2"])
                     backfill_se_vazio(conn, imovel_id, "praca", r["praca"])
-                    if r["modalidade"] == "venda_direta" and promover_para_venda_direta(conn, imovel_id):
-                        n_promovidos_venda_direta += 1
+                    if r["modalidade"] in n_modalidade_sincronizada and sincronizar_modalidade(conn, imovel_id, r["modalidade"]):
+                        n_modalidade_sincronizada[r["modalidade"]] += 1
                     n_enriquecidos += 1
                 else:
                     # Smart Leilões achou um imóvel da Caixa que nosso próprio
@@ -181,7 +181,8 @@ def cmd_atualizar(args):
             print(f"[smartleiloes] {n_enriquecidos} imóveis já existentes enriquecidos, "
                   f"{n_novos} novos (gaps da Caixa que não tínhamos), "
                   f"{n_ignorados_comerciais} novos ignorados (comercial), "
-                  f"{n_promovidos_venda_direta} promovidos pra venda direta (Compra Direta da Caixa)")
+                  f"{n_modalidade_sincronizada['venda_direta']} sincronizados pra venda direta, "
+                  f"{n_modalidade_sincronizada['venda_online']} sincronizados pra venda online")
 
         # imóvel que sumiu da fonte (não veio nessa leva) = leilão/venda não está
         # mais disponível — usa a lista CRUA (ids_vistos_por_fonte), não a `todas`

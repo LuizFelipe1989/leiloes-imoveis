@@ -158,24 +158,26 @@ def enriquecer_imovel(conn: sqlite3.Connection, imovel_id: str, campos: dict) ->
     return cur.rowcount > 0
 
 
-def promover_para_venda_direta(conn: sqlite3.Connection, imovel_id: str) -> bool:
-    """Promove um imóvel de 'leilao' pra 'venda_direta' (nunca o contrário —
-    ver scraper/smartleiloes.py, que é quem sabe a modalidade de venda real
-    da Caixa). Se o imóvel já tinha sido analisado com o modelo de leilão
-    (com comissão de leiloeiro, avaliação do banco como referência etc.),
-    apaga essa análise (não faz sentido pra venda direta) e volta o imóvel
-    pra 'novo' pra ser recalculado com o modelo certo na próxima
-    `cli.py analisar` — sem isso, `listar_com_ultima_analise` continuaria
-    juntando a análise antiga (do modelo errado) até uma nova ficar pronta,
-    já que ela sempre pega a mais recente independente do status do imóvel.
-    Retorna True se promoveu."""
+def sincronizar_modalidade(conn: sqlite3.Connection, imovel_id: str, modalidade: str) -> bool:
+    """Atualiza a modalidade (leilao/venda_direta/venda_online) de um imóvel
+    já existente quando a fonte que conhece a modalidade real (hoje só o
+    Smart Leilões, pra imóveis da Caixa — ver scraper/smartleiloes.py) diz
+    algo diferente do que já temos. leilão/venda direta/venda online têm
+    modelos de custo diferentes (comissão de leiloeiro varia, venda direta
+    usa comparável de mercado em vez de avaliação do banco) — se a
+    modalidade muda e o imóvel já tinha sido analisado, a análise antiga foi
+    calculada com o modelo ERRADO. Por isso ela é apagada e o imóvel volta
+    pra 'novo' pra ser recalculado do zero na próxima `cli.py analisar` —
+    sem isso, `listar_com_ultima_analise` continuaria juntando a análise
+    antiga até uma nova ficar pronta, já que ela sempre pega a mais recente
+    independente do status do imóvel. Retorna True se a modalidade mudou."""
     row = conn.execute("SELECT modalidade, status FROM imoveis WHERE id = ?", (imovel_id,)).fetchone()
-    if row is None or row["modalidade"] == "venda_direta":
+    if row is None or row["modalidade"] == modalidade:
         return False
     novo_status = "novo" if row["status"] == "analisado" else row["status"]
     conn.execute(
-        "UPDATE imoveis SET modalidade = 'venda_direta', status = ? WHERE id = ?",
-        (novo_status, imovel_id),
+        "UPDATE imoveis SET modalidade = ?, status = ? WHERE id = ?",
+        (modalidade, novo_status, imovel_id),
     )
     conn.execute("DELETE FROM analises WHERE imovel_id = ?", (imovel_id,))
     return True

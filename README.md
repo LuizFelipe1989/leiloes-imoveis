@@ -140,6 +140,32 @@ só por não termos conseguido buscar de novo.
 | **Leilão Imóvel** (`scraper/leilaoimovel.py`) | HTML estático do agregador `meuarremateleiloes.com.br` (leilaoimovel.com.br), sem proteção anti-bot. | Cobre Banco do Brasil, Itaú, Bradesco e Santander (ver `BANCOS_SLUG`) — nenhum desses bancos tem portal próprio de leilão como a Caixa, usam leiloeiros terceirizados. Esse agregador parece ser do mesmo grupo da Priscila Perini/Smart Leilões (assets em `/img/perini/...`). Mistura "Venda Direta" (preço fixo, sem avaliação de banco pra comparar — só o BB expõe isso hoje nesse agregador) e "Leilão Extrajudicial" (com desconto vs. avaliação) — cada imóvel vem marcado com `modalidade`. |
 | **Smart Leilões Caixa** (`scraper/smartleiloes.py`) | API JSON não documentada (App Engine, achada inspecionando o bundle JS do site Angular em `smartleiloescaixa.com.br` — `POST /imovel/busca` com `{estados, max, offset}`). | **Não é uma fonte de imóveis novos** — revende os MESMOS imóveis da Caixa (`origemIntegracao: "CAIXA"`, `hdnImovel` = o mesmo `id_no_site` que `scraper/caixa.py` já usa). Por isso não entra no `--fontes` como um scraper comum: `cli.py atualizar` usa os registros pra **enriquecer** (`db.enriquecer_imovel`/`backfill_se_vazio`) os imóveis `caixa:<id>` já existentes com campos que a Caixa não publica (quartos, garagem, lat/lng, aceita FGTS/consórcio/financiamento/parcelamento, pendência de ação judicial, modalidade de venda original) e só insere como novo quando o `hdnImovel` realmente não existe ainda na nossa base (gap de cobertura, ~90% se sobrepõe ao `caixa.py` numa amostra SP/MG). **Cuidado**: os ids "achados" pelo Smart Leilões (sejam enriquecimento ou inserção nova) precisam entrar em `ids_vistos_por_fonte["caixa"]` antes da checagem de encerrados-por-ausência — já foi um bug real aqui (imóveis novos inseridos e fechados na mesma execução). `quartos`, `garagem`, `aceitaConsorcio`, `aceitaParcelamento` e `temAcaoJudicial` quase sempre vêm zerados/nulos na prática (dado pouco preenchido pela fonte, não é bug nosso). |
 
+## Modalidades e o modelo de custo (campo `modalidade`)
+
+A Caixa vende imóvel de 5 jeitos diferentes, com custos diferentes — o campo
+`modalidade` (em `imoveis`) junta isso em 3 buckets, cada um com seu próprio
+caminho de cálculo em `calculator/screening.py::analise_rapida`:
+
+| `modalidade` | `praca` original (Caixa) | Leiloeiro? | Comissão | Referência de valor |
+|---|---|---|---|---|
+| `leilao` (default) | 1º Leilão, 2º Leilão, Licitação Aberta | Sim, credenciado | 5% sobre o lance | Avaliação do banco |
+| `venda_online` | Venda Online (disputa com cronômetro no portal da Caixa) | Não | 0% | Avaliação do banco (mesma referência do leilão) |
+| `venda_direta` | Venda Direta / Compra Direta (preço fixo, 1ª proposta válida vence) | Não | 0% | **Comparável de mercado** (QuintoAndar) — a Caixa não expõe avaliação confiável pra comparar numa venda sem disputa |
+
+Só o Smart Leilões (`scraper/smartleiloes.py::MODO_VENDA_PARA_MODALIDADE`) sabe
+dizer a modalidade real de um imóvel da Caixa — `scraper/caixa.py` sozinho não
+distingue isso, todo imóvel novo nasce `leilao` até o enriquecimento do Smart
+Leilões (re)classificar. Leilão Imóvel (`scraper/leilaoimovel.py`) também marca
+`venda_direta` diretamente pros imóveis de Itaú/Bradesco/Santander/BB sem
+avaliação de banco.
+
+Quando a modalidade de um imóvel já existente muda (`db.sincronizar_modalidade`),
+a análise antiga é apagada e o imóvel volta pra `status='novo'` — ela foi
+calculada com o modelo errado, então mantê-la seria mostrar um ROI incorreto
+no dashboard até a próxima análise rodar. **Não dá pra confiar que o ROI de um
+imóvel reflete a modalidade atual sem rodar `cli.py analisar` depois de
+qualquer mudança de modalidade.**
+
 ## Limitações conhecidas (v1)
 
 - **Caixa não roda headless** — só na sua máquina, com uma janela abrindo. E é

@@ -173,6 +173,7 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
     <label for="modo-select">Perfil de análise</label>
     <select class="month-select" id="modo-select">
       <option value="leilao">Leilão</option>
+      <option value="venda_online">Venda Online</option>
       <option value="venda_direta">Venda Direta</option>
     </select>
   </div>
@@ -281,10 +282,11 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
 
 let sortKey = "roi_anualizado_pct";
 let sortDir = -1;
-let modoAtual = "leilao"; // "leilao" | "venda_direta" — trocado pelo seletor de perfil
+let modoAtual = "leilao"; // "leilao" | "venda_online" | "venda_direta" — trocado pelo seletor de perfil
 
 const MODO_LABEL = {
   leilao: {nome: "Leilão", lance: "Lance", avaliacao: "Avaliação", desconto: "Desconto"},
+  venda_online: {nome: "Venda Online", lance: "Lance", avaliacao: "Avaliação", desconto: "Desconto"},
   venda_direta: {nome: "Venda Direta", lance: "Preço", avaliacao: "Val. mercado (est.)", desconto: "Desconto"},
 };
 
@@ -568,8 +570,9 @@ document.querySelectorAll("thead th[data-key]").forEach(th => {
 document.getElementById("f-cidade").addEventListener("input", applyFiltersAndSort);
 
 const MODO_SUB = {
-  leilao: "Zukerman (Itaú, Bradesco, Santander e outros), Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento",
-  venda_direta: "Imóveis à venda por preço fixo (sem disputa de lance) — Compra Direta da Caixa (via Smart Leilões) e venda direta do Banco do Brasil (via Meu Arremate Leilões). Sem avaliação bancária pra comparar, o desconto/ROI usa comparáveis de mercado (QuintoAndar) como referência.",
+  leilao: "Zukerman (Itaú, Bradesco, Santander e outros), Sold, Caixa e Banco do Brasil — foco em residencial e terreno, com triagem automática de retorno sobre o investimento. Inclui 1º/2º leilão e licitação aberta (com leiloeiro credenciado, comissão de 5%).",
+  venda_online: "Disputa de propostas direto no portal da Caixa (com cronômetro), mas sem leiloeiro credenciado — por isso sem a comissão de 5% que existe no leilão. Usa a mesma avaliação do banco como referência de desconto/ROI.",
+  venda_direta: "Imóveis à venda por preço fixo (sem disputa) — Compra Direta da Caixa (via Smart Leilões) e venda direta do Banco do Brasil (via Meu Arremate Leilões). Sem avaliação bancária pra comparar, o desconto/ROI usa comparáveis de mercado (QuintoAndar) como referência.",
 };
 
 function aplicarRotulosDoModo() {

@@ -68,14 +68,17 @@ def build():
     with connect() as conn:
         rows = [_row_to_dict(r) for r in listar_com_ultima_analise(conn)]
 
-    # cada modalidade (leilão / venda direta) tem seu próprio resumo — o
-    # seletor de perfil no dash troca qual desses é exibido, sem trocar de URL
+    # cada modalidade (leilão / venda online / venda direta) tem seu próprio
+    # resumo — o seletor de perfil no dash troca qual desses é exibido, sem
+    # trocar de URL. MODALIDADES fixa a ordem/presença mesmo se uma delas
+    # não tiver nenhum imóvel ainda (option do <select> não pode sumir).
+    MODALIDADES = ["leilao", "venda_online", "venda_direta"]
     resumos = {
-        "leilao": _montar_resumo([r for r in rows if r.get("modalidade", "leilao") == "leilao"]),
-        "venda_direta": _montar_resumo([r for r in rows if r.get("modalidade") == "venda_direta"]),
+        modalidade: _montar_resumo([r for r in rows if r.get("modalidade", "leilao") == modalidade])
+        for modalidade in MODALIDADES
     }
     total = len(rows)
-    oportunidades_total = resumos["leilao"]["oportunidades"] + resumos["venda_direta"]["oportunidades"]
+    oportunidades_total = sum(resumos[m]["oportunidades"] for m in MODALIDADES)
 
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     for placeholder, fname in FONT_PLACEHOLDERS:
@@ -85,8 +88,8 @@ def build():
         f"const DADOS = {json.dumps(rows, ensure_ascii=False)};\nconst RESUMOS = {json.dumps(resumos, ensure_ascii=False)};",
     )
     OUTPUT_PATH.write_text(html, encoding="utf-8")
-    print(f"Dashboard gerado em {OUTPUT_PATH} ({total} imóveis, "
-          f"{resumos['leilao']['total']} leilão / {resumos['venda_direta']['total']} venda direta, "
+    resumo_fontes = ", ".join(f"{resumos[m]['total']} {m}" for m in MODALIDADES)
+    print(f"Dashboard gerado em {OUTPUT_PATH} ({total} imóveis — {resumo_fontes}, "
           f"{oportunidades_total} oportunidades)")
 
 

@@ -16,7 +16,7 @@ from typing import Optional
 from db.store import Listing
 
 from .mercado import grupo_tipo
-from .model import InvestmentInputs, InvestmentResult, calcular
+from .model import DEFAULT_COMISSAO_LEILOEIRO_PCT, InvestmentInputs, InvestmentResult, calcular
 
 # % sobre a AVALIAÇÃO (não o lance): especialistas de leilão (ex: guias de
 # arrematação, calculadoras de viabilidade) calculam reforma como % do valor
@@ -57,7 +57,8 @@ def _estimar_venda(listing: Listing, preco_m2_mercado: Optional[float]) -> tuple
 
 
 def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = None,
-                           arremate_info: Optional[dict] = None) -> Optional[InvestmentInputs]:
+                           arremate_info: Optional[dict] = None,
+                           comissao_leiloeiro_pct: float = DEFAULT_COMISSAO_LEILOEIRO_PCT) -> Optional[InvestmentInputs]:
     """Monta InvestmentInputs com premissas padrão. Retorna None se faltar dado essencial.
 
     `preco_m2_mercado`: preço/m² mediano de comparáveis à venda na região do imóvel
@@ -68,6 +69,12 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
     calculator/arremates.py) — não entra na conta do valor de venda (é só
     complemento informativo, exibido no dashboard), já que é uma amostra
     pequena demais pra usar como premissa de cálculo com segurança.
+
+    `comissao_leiloeiro_pct`: default é a comissão normal de leiloeiro (1º/2º
+    leilão, licitação aberta — processos COM leiloeiro credenciado). Pra
+    "venda_online" da Caixa (disputa de propostas direto no portal, SEM
+    leiloeiro) quem chama passa 0.0 — mesma referência de valor (avaliação do
+    banco) do leilão normal, só muda esse custo.
     """
     if not listing.valor_lance_atual or not listing.valor_avaliacao:
         return None
@@ -79,6 +86,7 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
     inputs = InvestmentInputs(
         valor_lance=listing.valor_lance_atual,
         valor_avaliacao=listing.valor_avaliacao,
+        comissao_leiloeiro_pct=comissao_leiloeiro_pct,
         reforma=listing.valor_avaliacao * REFORMA_PCT_AVALIACAO,
         ocupado=ocupado,
         custo_desocupacao=listing.valor_lance_atual * CUSTO_DESOCUPACAO_PCT_LANCE if ocupado else 0.0,
@@ -138,6 +146,11 @@ def analise_rapida(listing: Listing, preco_m2_mercado: Optional[float] = None,
                     modalidade: str = "leilao") -> Optional[tuple[InvestmentInputs, InvestmentResult]]:
     if modalidade == "venda_direta":
         inputs = montar_inputs_venda_direta(listing, preco_m2_mercado)
+    elif modalidade == "venda_online":
+        # disputa de propostas direto no portal da Caixa, sem leiloeiro
+        # credenciado — mesma referência (avaliação do banco) do leilão
+        # normal, só sem a comissão de 5%
+        inputs = montar_inputs_rapidos(listing, preco_m2_mercado, arremate_info, comissao_leiloeiro_pct=0.0)
     else:
         inputs = montar_inputs_rapidos(listing, preco_m2_mercado, arremate_info)
     if inputs is None:

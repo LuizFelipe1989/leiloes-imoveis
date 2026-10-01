@@ -36,11 +36,14 @@ HEADERS = {
     "Origin": "https://smartleiloescaixa.com.br",
 }
 
-# "Venda Direta" da Caixa é preço fixo (primeira proposta igual/acima do
-# mínimo vence) — mapeia pro nosso "venda_direta". Os demais (leilão 1ª/2ª
-# praça, licitação aberta, venda online) são disputados por maior lance/
-# proposta, mapeiam pro nosso "leilao".
-MODO_VENDA_PARA_MODALIDADE = {"venda direta": "venda_direta"}
+# Três modalidades com custo/referência diferentes (ver calculator/screening.py):
+# - "venda direta" (Compra Direta): preço fixo, primeira proposta >= mínimo
+#   vence, sem leiloeiro -> "venda_direta".
+# - "venda online": disputa de propostas direto no portal da Caixa (tem
+#   cronômetro), mas SEM leiloeiro credenciado -> "venda_online".
+# - 1º/2º leilão e licitação aberta: disputa COM leiloeiro credenciado (5% de
+#   comissão) -> "leilao" (default).
+MODO_VENDA_PARA_MODALIDADE = {"venda direta": "venda_direta", "venda online": "venda_online"}
 
 
 def _int_ou_none(v) -> Optional[int]:
