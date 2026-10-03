@@ -3,7 +3,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from db import connect, upsert_listings, Listing, marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada
+from db import (
+    connect, upsert_listings, Listing, marcar_encerrados_por_ausencia,
+    marcar_encerrados_por_data_passada, sincronizar_modalidade,
+)
 
 
 def test_marcar_encerrados_por_ausencia(tmp_path):
@@ -43,10 +46,50 @@ def test_marcar_encerrados_por_data_passada(tmp_path):
         assert status["caixa:4"] == "novo"
 
 
+def test_rescrape_da_caixa_nao_desfaz_modalidade_sincronizada(tmp_path):
+    db_path = tmp_path / "test3.db"
+    with connect(db_path) as conn:
+        upsert_listings(conn, [
+            Listing(fonte="caixa", id_no_site="1", valor_avaliacao=100_000, valor_lance_atual=60_000),
+            Listing(fonte="leilaoimovel", id_no_site="2", modalidade="venda_direta"),
+        ])
+        assert sincronizar_modalidade(conn, "caixa:1", "venda_online") is True
+        # novo re-scrape da Caixa: o Listing vem com o default "leilao"
+        upsert_listings(conn, [
+            Listing(fonte="caixa", id_no_site="1", valor_avaliacao=100_000, valor_lance_atual=55_000),
+            Listing(fonte="leilaoimovel", id_no_site="2", modalidade="venda_direta"),
+        ])
+        row = conn.execute("SELECT modalidade, valor_lance_atual FROM imoveis WHERE id='caixa:1'").fetchone()
+        assert row["modalidade"] == "venda_online"  # não foi sobrescrita
+        assert row["valor_lance_atual"] == 55_000   # o resto continua sendo atualizado
+        # outras fontes seguem mandando na própria modalidade
+        row2 = conn.execute("SELECT modalidade FROM imoveis WHERE id='leilaoimovel:2'").fetchone()
+        assert row2["modalidade"] == "venda_direta"
+
+
+def test_sincronizar_modalidade_apaga_analise_antiga(tmp_path):
+    db_path = tmp_path / "test4.db"
+    with connect(db_path) as conn:
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1")])
+        conn.execute("UPDATE imoveis SET status='analisado' WHERE id='caixa:1'")
+        conn.execute(
+            "INSERT INTO analises (imovel_id, inputs_json, criado_em) VALUES ('caixa:1', '{}', '2026-01-01')"
+        )
+        assert sincronizar_modalidade(conn, "caixa:1", "venda_direta") is True
+        assert conn.execute("SELECT COUNT(*) FROM analises WHERE imovel_id='caixa:1'").fetchone()[0] == 0
+        assert conn.execute("SELECT status FROM imoveis WHERE id='caixa:1'").fetchone()["status"] == "novo"
+        # já está na modalidade pedida: não faz nada
+        assert sincronizar_modalidade(conn, "caixa:1", "venda_direta") is False
+
+
 if __name__ == "__main__":
     import tempfile
     with tempfile.TemporaryDirectory() as d:
         test_marcar_encerrados_por_ausencia(Path(d))
     with tempfile.TemporaryDirectory() as d:
         test_marcar_encerrados_por_data_passada(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_rescrape_da_caixa_nao_desfaz_modalidade_sincronizada(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_sincronizar_modalidade_apaga_analise_antiga(Path(d))
     print("OK - todos os testes passaram")

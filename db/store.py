@@ -132,6 +132,13 @@ def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
     else:
         data["ultima_atualizacao"] = now
         campos_update = {k: v for k, v in data.items() if k != "id" and k not in CAMPOS_ENRIQUECIMENTO}
+        # scraper/caixa.py não sabe a modalidade real (só o Smart Leilões sabe,
+        # via sincronizar_modalidade) e sempre manda o default "leilao" — se
+        # entrasse no UPDATE, todo re-scrape diário desfaria a sincronização,
+        # que depois seria refeita apagando a análise de novo (recalculando
+        # ~1.300 imóveis por dia à toa).
+        if listing.fonte == "caixa":
+            campos_update.pop("modalidade", None)
         set_clause = ", ".join(f"{k} = ?" for k in campos_update)
         values = list(campos_update.values()) + [listing.id]
         conn.execute(f"UPDATE imoveis SET {set_clause} WHERE id = ?", values)
