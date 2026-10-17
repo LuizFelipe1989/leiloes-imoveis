@@ -142,6 +142,15 @@ def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
         set_clause = ", ".join(f"{k} = ?" for k in campos_update)
         values = list(campos_update.values()) + [listing.id]
         conn.execute(f"UPDATE imoveis SET {set_clause} WHERE id = ?", values)
+        # apareceu de novo na coleta da fonte = está ativo; se tinha sido fechado
+        # (por engano numa rodada com a fonte oficial fora do ar, ou porque o
+        # leilão foi reaberto), reabre. Antes o status nunca voltava sozinho.
+        conn.execute(
+            "UPDATE imoveis SET status = CASE WHEN EXISTS "
+            "(SELECT 1 FROM analises WHERE imovel_id = ?) THEN 'analisado' ELSE 'novo' END "
+            "WHERE id = ? AND status = 'encerrado'",
+            (listing.id, listing.id),
+        )
 
 
 def upsert_listings(conn: sqlite3.Connection, listings: Iterable[Listing]) -> int:

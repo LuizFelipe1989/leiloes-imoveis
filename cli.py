@@ -146,12 +146,24 @@ def cmd_atualizar(args):
             # como encerrado por "ausência" já na mesma execução — foi
             # exatamente o que aconteceu com os 304 imóveis novos na primeira
             # versão disso (inseridos e imediatamente fechados no mesmo run).
-            vistos_smart_leiloes = ids_vistos_por_fonte.setdefault("caixa", set())
+            #
+            # MAS só soma se o scraper oficial rodou nesta execução (a chave
+            # "caixa" só existe nesse caso). Se ele falhou (timeout no site da
+            # Caixa, acontece), o Smart Leilões SOZINHO não serve de base pra
+            # "sumiu da fonte": ele lista ~10% menos imóveis que a Caixa num dia
+            # normal, então a checagem fechava 200-400 imóveis ainda ativos por
+            # rodada (437 em 13/10, 240 e 218 em 17/10) — e fechado não reabre
+            # sozinho. Sem a chave, a checagem pra "caixa" é pulada de vez.
+            vistos_smart_leiloes = ids_vistos_por_fonte.get("caixa")
+            if vistos_smart_leiloes is None:
+                print("[caixa] scraper oficial falhou nesta execução — pulando a checagem de "
+                      "encerrados por ausência da Caixa (só o Smart Leilões não é base confiável)")
             for r in registros_smart_leiloes:
                 if not r["id_no_site"]:
                     continue
                 imovel_id = f"caixa:{r['id_no_site']}"
-                vistos_smart_leiloes.add(imovel_id)
+                if vistos_smart_leiloes is not None:
+                    vistos_smart_leiloes.add(imovel_id)
                 if enriquecer_imovel(conn, imovel_id, r):
                     # já existe (veio do scraper/caixa.py oficial) — só enriquece,
                     # nunca sobrescreve endereco/bairro/valores que já temos

@@ -82,6 +82,30 @@ def test_sincronizar_modalidade_apaga_analise_antiga(tmp_path):
         assert sincronizar_modalidade(conn, "caixa:1", "venda_direta") is False
 
 
+def test_imovel_encerrado_reabre_se_reaparece_na_coleta(tmp_path):
+    db_path = tmp_path / "test5.db"
+    with connect(db_path) as conn:
+        upsert_listings(conn, [
+            Listing(fonte="caixa", id_no_site="1"),   # nunca analisado
+            Listing(fonte="caixa", id_no_site="2"),   # já tinha análise
+            Listing(fonte="caixa", id_no_site="3"),   # descartado: não deve reabrir
+        ])
+        conn.execute(
+            "INSERT INTO analises (imovel_id, inputs_json, criado_em) VALUES ('caixa:2', '{}', '2026-01-01')"
+        )
+        conn.execute("UPDATE imoveis SET status='encerrado' WHERE id IN ('caixa:1','caixa:2')")
+        conn.execute("UPDATE imoveis SET status='descartado' WHERE id='caixa:3'")
+        upsert_listings(conn, [
+            Listing(fonte="caixa", id_no_site="1"),
+            Listing(fonte="caixa", id_no_site="2"),
+            Listing(fonte="caixa", id_no_site="3"),
+        ])
+        status = {row["id"]: row["status"] for row in conn.execute("SELECT id, status FROM imoveis")}
+        assert status["caixa:1"] == "novo"
+        assert status["caixa:2"] == "analisado"
+        assert status["caixa:3"] == "descartado"
+
+
 if __name__ == "__main__":
     import tempfile
     with tempfile.TemporaryDirectory() as d:
