@@ -29,6 +29,7 @@ import io
 import json
 import re
 import sys
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable, Optional
@@ -44,9 +45,11 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 )
 
+# timeout de 60s no próprio fetch: sem isso um download pendurado deixava o
+# subprocesso rodando até estourar o limite de 300s do cli.py (visto em 18/10).
 _FETCH_AS_BASE64_JS = """
 async (url) => {
-    const resp = await fetch(url);
+    const resp = await fetch(url, {signal: AbortSignal.timeout(60000)});
     if (resp.status !== 200) {
         return {status: resp.status, base64: null};
     }
@@ -108,11 +111,43 @@ def _tipo_da_descricao(descricao: str) -> str:
     return descricao.split(",")[0].strip() if descricao else ""
 
 
+# Coluna "Modalidade de venda" do CSV oficial (100% preenchida; valores vistos em
+# 27/10: "Leilão SFI - Edital Único", "Licitação Aberta", "Venda Online",
+# "Venda Direta Online"). Validado contra o cabeçalho de 50 páginas de detalhe
+# no site (Leilão SFI/Licitação Aberta têm leiloeiro, Venda Online e Compra
+# Direta não). Leilão e Licitação Aberta cobram 5% de comissão de leiloeiro;
+# Venda Online (disputa com cronômetro no portal) e Venda Direta não.
+MODALIDADE_CSV = {
+    "leilão sfi - edital único": ("leilao", ""),          # 1º/2º leilão: Smart Leilões refina o `praca`
+    "licitação aberta": ("leilao", "Licitação Aberta"),
+    "venda online": ("venda_online", "Venda Online"),
+    "venda direta online": ("venda_direta", "Venda Direta"),
+}
+
+
+def _modalidade_do_csv(rotulo: str) -> tuple[str, str]:
+    """(modalidade, praca) a partir do rótulo do CSV. Rótulo desconhecido
+    devolve modalidade "" — o upsert então NÃO mexe na modalidade já salva
+    (melhor manter a classificação anterior do que chutar leilão e cobrar
+    comissão de leiloeiro de um imóvel que talvez nem tenha)."""
+    chave = (rotulo or "").strip().lower()
+    if chave in MODALIDADE_CSV:
+        return MODALIDADE_CSV[chave]
+    if chave not in _ROTULOS_AVISADOS:  # um aviso por rótulo, não um por imóvel
+        _ROTULOS_AVISADOS.add(chave)
+        print(f"[caixa] AVISO: 'Modalidade de venda' desconhecida no CSV: {rotulo!r}", file=sys.stderr)
+    return "", ""
+
+
+_ROTULOS_AVISADOS: set = set()
+
+
 def _row_to_listing(row: dict) -> Optional[Listing]:
     id_imovel = row.get("N° do imóvel", "").strip()
     if not id_imovel:
         return None
     descricao = row.get("Descrição", "")
+    modalidade, praca = _modalidade_do_csv(row.get("Modalidade de venda", ""))
     return Listing(
         fonte="caixa",
         id_no_site=id_imovel,
@@ -126,7 +161,8 @@ def _row_to_listing(row: dict) -> Optional[Listing]:
         area_m2=_area_da_descricao(descricao),
         valor_avaliacao=_to_float(row.get("Valor de avaliação", "")),
         valor_lance_atual=_to_float(row.get("Preço", "")),
-        praca="",
+        modalidade=modalidade,
+        praca=praca,
         data_leilao="",
         ocupado="desconhecido",
         url=row.get("Link de acesso", "").strip(),
@@ -145,15 +181,17 @@ def buscar(estados: Iterable[str]) -> list[Listing]:
         browser = p.chromium.launch(headless=False)
         try:
             page = browser.new_page(user_agent=USER_AGENT)
-            page.goto(f"{BASE_URL}/sistema/busca-imovel.asp", wait_until="networkidle", timeout=30000)
+            # "load", NÃO "networkidle": a página de busca dispara pixels de
+            # analytics de terceiros (Microsoft Clarity/Bing, DoubleClick) que
+            # às vezes ficam pendurados pra sempre — networkidle (zero
+            # requisições em andamento) nunca chega e estourava os 30s mesmo com
+            # a página já pronta em ~1,6s e a sessão da Caixa já estabelecida.
+            # Medido em 27/10: 8/8 coletas completas com "load", enquanto
+            # networkidle falhava em sequência na mesma hora.
+            page.goto(f"{BASE_URL}/sistema/busca-imovel.asp", wait_until="load", timeout=60000)
             for uf in estados:
                 csv_url = f"{BASE_URL}/listaweb/Lista_imoveis_{uf.upper()}.csv"
-                result = page.evaluate(_FETCH_AS_BASE64_JS, csv_url)
-                if result["status"] != 200 or not result["base64"]:
-                    print(f"[caixa] falha ao baixar lista de {uf}: HTTP {result['status']}", file=sys.stderr)
-                    continue
-                raw_bytes = base64.b64decode(result["base64"])
-                rows = _parse_csv(raw_bytes)
+                rows = _baixar_csv(page, uf, csv_url)
                 for row in rows:
                     listing = _row_to_listing(row)
                     if listing:
@@ -161,6 +199,31 @@ def buscar(estados: Iterable[str]) -> list[Listing]:
         finally:
             browser.close()
     return listings
+
+
+def _baixar_csv(page, uf: str, csv_url: str, tentativas: int = 3) -> list[dict]:
+    """Baixa e faz parse do CSV de uma UF. Se não conseguir, LEVANTA erro em vez
+    de seguir sem essa UF: devolver só parte dos estados como se fosse sucesso
+    fazia o cli.py achar que os imóveis do estado faltante tinham sumido da
+    fonte (e fechá-los) — e o aviso ia só pro stderr, que o cli.py descarta
+    quando o subprocesso termina com código 0."""
+    erro = "sem detalhe"
+    for tentativa in range(1, tentativas + 1):
+        try:
+            result = page.evaluate(_FETCH_AS_BASE64_JS, csv_url)
+            if result["status"] == 200 and result["base64"]:
+                rows = _parse_csv(base64.b64decode(result["base64"]))
+                if rows:
+                    return rows
+                erro = "CSV veio vazio"
+            else:
+                erro = f"HTTP {result['status']}"
+        except Exception as e:  # timeout do fetch, conexão caída etc.
+            erro = str(e).splitlines()[0][:120]
+        print(f"[caixa] {uf}: tentativa {tentativa}/{tentativas} do CSV falhou ({erro})", file=sys.stderr)
+        if tentativa < tentativas:
+            time.sleep(3 * tentativa)
+    raise RuntimeError(f"não foi possível baixar a lista de {uf} da Caixa: {erro}")
 
 
 if __name__ == "__main__":

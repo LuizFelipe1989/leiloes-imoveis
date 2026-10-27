@@ -126,22 +126,24 @@ def upsert_listing(conn: sqlite3.Connection, listing: Listing) -> None:
         data["primeira_vez_visto"] = now
         data["ultima_atualizacao"] = now
         data["status"] = "novo"
+        data["modalidade"] = listing.modalidade or "leilao"  # "" = fonte não soube dizer
         cols = ", ".join(data.keys())
         placeholders = ", ".join("?" for _ in data)
         conn.execute(f"INSERT INTO imoveis ({cols}) VALUES ({placeholders})", tuple(data.values()))
     else:
         data["ultima_atualizacao"] = now
         campos_update = {k: v for k, v in data.items() if k != "id" and k not in CAMPOS_ENRIQUECIMENTO}
-        # scraper/caixa.py não sabe a modalidade real (só o Smart Leilões sabe,
-        # via sincronizar_modalidade) e sempre manda o default "leilao" — se
-        # entrasse no UPDATE, todo re-scrape diário desfaria a sincronização,
-        # que depois seria refeita apagando a análise de novo (recalculando
-        # ~1.300 imóveis por dia à toa).
-        if listing.fonte == "caixa":
-            campos_update.pop("modalidade", None)
+        # `modalidade` nunca entra no UPDATE comum: trocar a modalidade muda o
+        # modelo de custo (comissão de leiloeiro, referência de valor), então a
+        # análise já calculada fica errada e tem que ser apagada junto —
+        # sincronizar_modalidade faz isso. Modalidade vazia = a fonte não soube
+        # dizer (ex: rótulo novo no CSV da Caixa): mantém a que já temos.
+        campos_update.pop("modalidade", None)
         set_clause = ", ".join(f"{k} = ?" for k in campos_update)
         values = list(campos_update.values()) + [listing.id]
         conn.execute(f"UPDATE imoveis SET {set_clause} WHERE id = ?", values)
+        if listing.modalidade:
+            sincronizar_modalidade(conn, listing.id, listing.modalidade)
         # apareceu de novo na coleta da fonte = está ativo; se tinha sido fechado
         # (por engano numa rodada com a fonte oficial fora do ar, ou porque o
         # leilão foi reaberto), reabre. Antes o status nunca voltava sozinho.

@@ -11,6 +11,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,7 +22,7 @@ from db import (
     connect, save_analise, upsert_listings, listar_com_ultima_analise,
     chave_regiao, get_comparavel_cache, set_comparavel_cache,
     marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada,
-    enriquecer_imovel, backfill_se_vazio, sincronizar_modalidade,
+    enriquecer_imovel, backfill_se_vazio,
 )
 from db.store import Listing, upsert_listing
 from scraper import zukerman, sold, leilaoimovel, smartleiloes
@@ -30,27 +31,47 @@ from scraper.filters import eh_residencial_ou_terreno
 CAIXA_SCRIPT = Path(__file__).parent / "scraper" / "caixa.py"
 
 
+def _ultima_linha(texto: str) -> str:
+    """Última linha não vazia (num traceback é a exceção de verdade, ex:
+    'TimeoutError: Page.goto: ...') — o início do traceback não diz nada."""
+    linhas = [l.strip() for l in (texto or "").splitlines() if l.strip()]
+    return linhas[-1][:300] if linhas else "sem saída de erro"
+
+
 def _buscar_caixa_isolado(ufs: list[str], tentativas: int = 3) -> list[Listing]:
     """Roda scraper/caixa.py num subprocesso isolado (ver comentário no topo
     daquele arquivo). O Chromium com janela real às vezes fecha sozinho no meio
-    da navegação (flakiness observada, não 100% reproduzível/explicada) — vale
-    a pena tentar de novo antes de desistir."""
+    da navegação, e o site da Caixa oscila — vale a pena tentar de novo antes
+    de desistir, esperando um pouco mais a cada vez (tentativas coladas uma na
+    outra, como era antes, só repetiam a mesma condição ruim)."""
     erro = None
     for tentativa in range(1, tentativas + 1):
-        proc = subprocess.run(
-            [sys.executable, str(CAIXA_SCRIPT), *ufs],
-            capture_output=True, text=True, timeout=300,
-        )
-        if proc.returncode == 0:
-            try:
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(CAIXA_SCRIPT), *ufs],
+                capture_output=True, text=True, timeout=300,
+            )
+            if proc.stderr.strip():
+                # avisos do scraper (ex: retry de download de CSV) — antes eram
+                # descartados quando o subprocesso terminava com sucesso
+                for linha in proc.stderr.strip().splitlines():
+                    print(linha)
+            if proc.returncode == 0:
                 dados = json.loads(proc.stdout)
-                return [Listing(**d) for d in dados]
-            except json.JSONDecodeError as e:
-                erro = f"saída não era JSON válido: {e}"
-        else:
-            erro = proc.stderr.strip()[-2000:]
+                if dados:
+                    return [Listing(**d) for d in dados]
+                erro = "subprocesso terminou sem erro mas devolveu 0 imóveis"
+            else:
+                erro = _ultima_linha(proc.stderr)
+        except subprocess.TimeoutExpired:
+            erro = "subprocesso passou de 300s (travou)"
+        except json.JSONDecodeError as e:
+            erro = f"saída não era JSON válido: {e}"
         if tentativa < tentativas:
-            print(f"[caixa] tentativa {tentativa} falhou ({erro[:200]!r}), tentando de novo...")
+            espera = 20 * tentativa
+            print(f"[caixa] tentativa {tentativa}/{tentativas} falhou ({erro}); "
+                  f"nova tentativa em {espera}s...")
+            time.sleep(espera)
     raise RuntimeError(f"subprocesso da Caixa falhou após {tentativas} tentativas: {erro}")
 
 
@@ -137,7 +158,6 @@ def cmd_atualizar(args):
             n_enriquecidos = 0
             n_novos = 0
             n_ignorados_comerciais = 0
-            n_modalidade_sincronizada = {"venda_direta": 0, "venda_online": 0}
             # Smart Leilões só lista imóveis ativos da Caixa — então "apareceu na
             # busca de hoje" também conta como "visto" pra fonte "caixa", ao lado
             # do que o scraper/caixa.py oficial trouxe. Sem isso, um imóvel que
@@ -169,8 +189,10 @@ def cmd_atualizar(args):
                     # nunca sobrescreve endereco/bairro/valores que já temos
                     backfill_se_vazio(conn, imovel_id, "area_m2", r["area_m2"])
                     backfill_se_vazio(conn, imovel_id, "praca", r["praca"])
-                    if r["modalidade"] in n_modalidade_sincronizada and sincronizar_modalidade(conn, imovel_id, r["modalidade"]):
-                        n_modalidade_sincronizada[r["modalidade"]] += 1
+                    # NÃO reclassifica a modalidade aqui: pra imóvel que já existe
+                    # ela vem do CSV oficial da Caixa (completo, todo dia) via
+                    # upsert. O Smart Leilões oscila ±20% e tem defasagem — 5% da
+                    # base ficou na modalidade errada quando ele mandava nisso.
                     n_enriquecidos += 1
                 else:
                     # Smart Leilões achou um imóvel da Caixa que nosso próprio
@@ -192,9 +214,7 @@ def cmd_atualizar(args):
                     n_novos += 1
             print(f"[smartleiloes] {n_enriquecidos} imóveis já existentes enriquecidos, "
                   f"{n_novos} novos (gaps da Caixa que não tínhamos), "
-                  f"{n_ignorados_comerciais} novos ignorados (comercial), "
-                  f"{n_modalidade_sincronizada['venda_direta']} sincronizados pra venda direta, "
-                  f"{n_modalidade_sincronizada['venda_online']} sincronizados pra venda online")
+                  f"{n_ignorados_comerciais} novos ignorados (comercial)")
 
         # imóvel que sumiu da fonte (não veio nessa leva) = leilão/venda não está
         # mais disponível — usa a lista CRUA (ids_vistos_por_fonte), não a `todas`

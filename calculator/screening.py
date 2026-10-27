@@ -123,6 +123,17 @@ def montar_inputs_venda_direta(listing: Listing, preco_m2_mercado: Optional[floa
         return None
 
     valor_mercado = preco_m2_mercado * area
+    fonte_venda = "comparaveis_quintoandar"
+    # mesma trava do leilão (DESVIO_MAXIMO_VS_AVALIACAO): comparável de bairro
+    # heterogêneo "vaza" pra uma sub-região bem mais cara e gera ROI de
+    # centenas de %. Auditoria de 27/10: os 8 maiores ROI da venda direta da
+    # Caixa tinham todos o comparável a 2-3,5x a avaliação do banco. Quando a
+    # avaliação existe (Caixa publica; o BB não), ela serve de régua e de
+    # fallback; sem ela (BB) não há como checar e o comparável vale como está.
+    avaliacao_banco = getattr(listing, "valor_avaliacao", None)
+    if avaliacao_banco and valor_mercado > avaliacao_banco * DESVIO_MAXIMO_VS_AVALIACAO:
+        valor_mercado = avaliacao_banco * (1 - HAIRCUT_VENDA_PCT)
+        fonte_venda = "haircut_avaliacao"
     ocupado = listing.ocupado == "sim"
     iptu_mensal = valor_mercado * IPTU_PCT_ANO_AVALIACAO / 12
     condominio_mensal = CONDOMINIO_MENSAL_APARTAMENTO if grupo_tipo(listing.tipo_imovel) == "apartamento" else 0.0
@@ -137,7 +148,7 @@ def montar_inputs_venda_direta(listing: Listing, preco_m2_mercado: Optional[floa
         iptu_mensal=iptu_mensal,
         condominio_mensal=condominio_mensal,
         valor_venda_estimado=valor_mercado,
-        fonte_venda_estimada="comparaveis_quintoandar",
+        fonte_venda_estimada=fonte_venda,
     )
 
 

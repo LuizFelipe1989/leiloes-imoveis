@@ -152,14 +152,29 @@ caminho de cálculo em `calculator/screening.py::analise_rapida`:
 | `venda_online` | Venda Online (disputa com cronômetro no portal da Caixa) | Não | 0% | Avaliação do banco (mesma referência do leilão) |
 | `venda_direta` | Venda Direta / Compra Direta (preço fixo, 1ª proposta válida vence) | Não | 0% | **Comparável de mercado** (QuintoAndar) — a Caixa não expõe avaliação confiável pra comparar numa venda sem disputa |
 
-Só o Smart Leilões (`scraper/smartleiloes.py::MODO_VENDA_PARA_MODALIDADE`) sabe
-dizer a modalidade real de um imóvel da Caixa — `scraper/caixa.py` sozinho não
-distingue isso, todo imóvel novo nasce `leilao` até o enriquecimento do Smart
-Leilões (re)classificar. Leilão Imóvel (`scraper/leilaoimovel.py`) também marca
-`venda_direta` diretamente pros imóveis de Itaú/Bradesco/Santander/BB sem
-avaliação de banco.
+Pra imóveis da **Caixa** a modalidade vem da coluna **"Modalidade de venda" do CSV
+oficial** (`scraper/caixa.py::MODALIDADE_CSV`: "Leilão SFI - Edital Único" e
+"Licitação Aberta" -> `leilao`, "Venda Online" -> `venda_online`, "Venda Direta
+Online" -> `venda_direta`) — coluna 100% preenchida, validada em 27/10 contra o
+cabeçalho de 50 páginas de detalhe (Leilão SFI/Licitação Aberta têm leiloeiro;
+Venda Online e Compra Direta não). Rótulo desconhecido não reclassifica nada
+(`modalidade=""`, o upsert mantém a que já existe). **Não use o Smart Leilões
+pra isso**: ele oscila ±20% por dia e tem defasagem — quando mandava na
+modalidade, 5% da base da Caixa (180 imóveis) ficou no modelo de custo errado
+(a Caixa promove Venda Online -> Compra Direta com o tempo). Smart Leilões
+(`scraper/smartleiloes.py`) segue só enriquecendo e achando imóveis novos.
+Leilão Imóvel (`scraper/leilaoimovel.py`) marca `venda_direta` direto pros
+imóveis de Itaú/Bradesco/Santander/BB sem avaliação de banco.
 
-Quando a modalidade de um imóvel já existente muda (`db.sincronizar_modalidade`),
+**Trava de sanidade na venda direta:** o comparável de mercado é usado como
+referência, mas se passar de `DESVIO_MAXIMO_VS_AVALIACAO` (1,5x) a avaliação do
+banco, cai no haircut sobre a avaliação — igual ao leilão. Sem essa trava, os 8
+maiores ROI da venda direta da Caixa eram artefatos (comparável a 2-3,5x a
+avaliação, bairros heterogêneos). Quando não há avaliação (BB) não há como
+checar e o comparável vale como está.
+
+Quando a modalidade de um imóvel já existente muda (`upsert_listing` ->
+`db.sincronizar_modalidade`, pra qualquer fonte),
 a análise antiga é apagada e o imóvel volta pra `status='novo'` — ela foi
 calculada com o modelo errado, então mantê-la seria mostrar um ROI incorreto
 no dashboard até a próxima análise rodar. **Não dá pra confiar que o ROI de um
@@ -168,14 +183,20 @@ qualquer mudança de modalidade.**
 
 ## Limitações conhecidas (v1)
 
-- **Caixa não roda headless** — só na sua máquina, com uma janela abrindo. E é
-  **flaky mesmo assim**: o Chromium às vezes fecha sozinho no meio da
-  navegação (`TargetClosedError`), sem uma causa 100% identificada — não é
-  sempre reproduzível, então pode ser contenção de recursos do sistema mais do
-  que um bug de código. `cli.py atualizar` já roda esse scraper como
-  subprocesso isolado (`_buscar_caixa_isolado`, ver comentário no topo de
-  `scraper/caixa.py`) e tenta de novo até 3x antes de desistir — na prática
-  quase sempre resolve numa das tentativas.
+- **Caixa não roda headless** — só na sua máquina, com uma janela abrindo.
+  `cli.py atualizar` roda o scraper como subprocesso isolado
+  (`_buscar_caixa_isolado`) com até 3 tentativas e espera crescente entre elas.
+  **Causa das falhas intermitentes (investigada em 27/10):** a página de busca
+  dispara pixels de analytics de terceiros (Microsoft Clarity/Bing, DoubleClick)
+  que às vezes ficam pendurados; o scraper esperava `networkidle` (zero
+  requisições em andamento), que nunca chegava e estourava os 30s mesmo com a
+  página pronta em ~1,6s. Reproduzido: 10 aberturas ok em ~3,3s e as 2
+  seguintes estouraram. Agora espera só `load` (8/8 coletas completas no mesmo
+  período em que `networkidle` falhava). O download de cada CSV também tem
+  timeout próprio e **falha alto** se uma UF não baixar (antes devolvia só as
+  UFs que deram certo como se fosse sucesso, e o resto era fechado como "sumiu
+  da fonte"). Se a coleta da Caixa falhar mesmo assim, a checagem de
+  encerrados dela é pulada (ver `cmd_atualizar`).
 - **Zukerman só pega a primeira leva de resultados por estado** (a listagem
   completa carrega mais via scroll infinito, que ainda não foi mapeado). Para
   cobertura maior de uma cidade específica, use `zukerman.buscar_cidade(uf,

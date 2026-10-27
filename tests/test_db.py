@@ -46,25 +46,40 @@ def test_marcar_encerrados_por_data_passada(tmp_path):
         assert status["caixa:4"] == "novo"
 
 
-def test_rescrape_da_caixa_nao_desfaz_modalidade_sincronizada(tmp_path):
+def test_modalidade_vazia_da_fonte_nao_mexe_na_que_ja_temos(tmp_path):
+    # rótulo desconhecido no CSV da Caixa -> caixa.py manda modalidade="" e o
+    # upsert mantém a classificação anterior (em vez de chutar "leilao")
     db_path = tmp_path / "test3.db"
     with connect(db_path) as conn:
-        upsert_listings(conn, [
-            Listing(fonte="caixa", id_no_site="1", valor_avaliacao=100_000, valor_lance_atual=60_000),
-            Listing(fonte="leilaoimovel", id_no_site="2", modalidade="venda_direta"),
-        ])
-        assert sincronizar_modalidade(conn, "caixa:1", "venda_online") is True
-        # novo re-scrape da Caixa: o Listing vem com o default "leilao"
-        upsert_listings(conn, [
-            Listing(fonte="caixa", id_no_site="1", valor_avaliacao=100_000, valor_lance_atual=55_000),
-            Listing(fonte="leilaoimovel", id_no_site="2", modalidade="venda_direta"),
-        ])
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1", modalidade="venda_online")])
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1", modalidade="", valor_lance_atual=55_000)])
         row = conn.execute("SELECT modalidade, valor_lance_atual FROM imoveis WHERE id='caixa:1'").fetchone()
-        assert row["modalidade"] == "venda_online"  # não foi sobrescrita
-        assert row["valor_lance_atual"] == 55_000   # o resto continua sendo atualizado
-        # outras fontes seguem mandando na própria modalidade
-        row2 = conn.execute("SELECT modalidade FROM imoveis WHERE id='leilaoimovel:2'").fetchone()
-        assert row2["modalidade"] == "venda_direta"
+        assert row["modalidade"] == "venda_online"
+        assert row["valor_lance_atual"] == 55_000  # o resto continua sendo atualizado
+        # imóvel NOVO com modalidade vazia nasce como leilão (default)
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="2", modalidade="")])
+        assert conn.execute("SELECT modalidade FROM imoveis WHERE id='caixa:2'").fetchone()["modalidade"] == "leilao"
+
+
+def test_upsert_com_modalidade_diferente_reclassifica_e_apaga_analise(tmp_path):
+    # a Caixa promove imóveis de "Venda Online" pra "Venda Direta Online" com o tempo
+    db_path = tmp_path / "test3b.db"
+    with connect(db_path) as conn:
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1", modalidade="venda_online")])
+        conn.execute("UPDATE imoveis SET status='analisado' WHERE id='caixa:1'")
+        conn.execute("INSERT INTO analises (imovel_id, inputs_json, criado_em) VALUES ('caixa:1', '{}', '2026-01-01')")
+        # mesma modalidade no re-scrape: nada muda, a análise fica
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1", modalidade="venda_online")])
+        assert conn.execute("SELECT COUNT(*) FROM analises").fetchone()[0] == 1
+        assert conn.execute("SELECT status FROM imoveis WHERE id='caixa:1'").fetchone()["status"] == "analisado"
+        # modalidade mudou: reclassifica, apaga a análise (modelo errado) e volta pra 'novo'
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1", modalidade="venda_direta")])
+        row = conn.execute("SELECT modalidade, status FROM imoveis WHERE id='caixa:1'").fetchone()
+        assert (row["modalidade"], row["status"]) == ("venda_direta", "novo")
+        assert conn.execute("SELECT COUNT(*) FROM analises").fetchone()[0] == 0
+        # outras fontes seguem o mesmo caminho (ex: leilaoimovel marcando venda direta)
+        upsert_listings(conn, [Listing(fonte="leilaoimovel", id_no_site="9", modalidade="venda_direta")])
+        assert conn.execute("SELECT modalidade FROM imoveis WHERE id='leilaoimovel:9'").fetchone()["modalidade"] == "venda_direta"
 
 
 def test_sincronizar_modalidade_apaga_analise_antiga(tmp_path):
@@ -113,7 +128,7 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as d:
         test_marcar_encerrados_por_data_passada(Path(d))
     with tempfile.TemporaryDirectory() as d:
-        test_rescrape_da_caixa_nao_desfaz_modalidade_sincronizada(Path(d))
+        test_modalidade_vazia_da_fonte_nao_mexe_na_que_ja_temos(Path(d))
     with tempfile.TemporaryDirectory() as d:
         test_sincronizar_modalidade_apaga_analise_antiga(Path(d))
     print("OK - todos os testes passaram")
