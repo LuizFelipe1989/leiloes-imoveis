@@ -56,26 +56,57 @@ def _montar_slug(cidade: str, estado: str, bairro: str = "") -> str:
     return "-".join(slugify(p) for p in partes) + "-brasil"
 
 
+# Resultado do slug "cidade-uf" por execução: dict[(uf, slug_cidade)] -> localização
+# resolvida, ou None se o QuintoAndar respondeu que não conhece a cidade.
+# Antes cada BAIRRO de uma cidade sem cobertura repetia as duas chamadas de slug
+# que já tinham falhado (~2h só pras 2,4 mil regiões dos estados novos, quando
+# a maioria das cidades pequenas nem existe na base deles). Agora a cidade é
+# consultada uma vez e, se não existe, os bairros dela são pulados. Só resposta
+# definitiva (HTTP != 200) é memorizada — erro de rede/timeout não vira "sem
+# cobertura", senão uma oscilação virava 'sem comparável' pra cidade inteira.
+_SLUG_CIDADE: dict = {}
+
+
+def _consultar_slug(slug: str) -> tuple[Optional[dict], bool]:
+    """(localização, definitivo). definitivo=False quando foi falha de rede."""
+    try:
+        resp = requests.get(f"{BASE_URL}/v1/search/location/slug/{slug}", params={"country": "BR"},
+                             headers=HEADERS, timeout=TIMEOUT)
+    except requests.RequestException:
+        return None, False
+    if resp.status_code == 200:
+        try:
+            data = resp.json()
+        except ValueError:
+            return None, False
+        if data.get("center") and data.get("viewport"):
+            return {"slug": slug, "center": data["center"], "viewport": data["viewport"]}, True
+    return None, True
+
+
 def resolver_localizacao(cidade: str, estado: str, bairro: str = "") -> Optional[dict]:
     """Resolve (bairro, cidade, UF) num centro geográfico + viewport via QuintoAndar.
 
-    Tenta primeiro com o bairro; se não achar (cidade pequena ou bairro fora da
-    base deles), tenta só cidade+UF como fallback mais genérico.
+    Primeiro confirma que a CIDADE existe na base deles (uma consulta por
+    cidade por execução, ver _SLUG_CIDADE); se não existe, devolve None sem
+    gastar chamada com o bairro. Existindo, tenta o bairro e, se não achar,
+    usa a cidade+UF como fallback mais genérico.
     """
-    tentativas = [_montar_slug(cidade, estado, bairro)] if bairro else []
-    tentativas.append(_montar_slug(cidade, estado))
-    for slug in tentativas:
-        try:
-            resp = requests.get(f"{BASE_URL}/v1/search/location/slug/{slug}", params={"country": "BR"},
-                                 headers=HEADERS, timeout=TIMEOUT)
-        except requests.RequestException:
-            continue
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("center") and data.get("viewport"):
-                return {"slug": slug, "center": data["center"], "viewport": data["viewport"],
-                        "bairro_encontrado": bool(bairro) and slug == tentativas[0]}
-    return None
+    chave_cidade = ((estado or "").upper(), slugify(cidade))
+    if chave_cidade in _SLUG_CIDADE:
+        cidade_loc = _SLUG_CIDADE[chave_cidade]
+    else:
+        cidade_loc, definitivo = _consultar_slug(_montar_slug(cidade, estado))
+        if definitivo:
+            _SLUG_CIDADE[chave_cidade] = cidade_loc
+    if cidade_loc is None:
+        return None
+
+    if bairro:
+        bairro_loc, _ = _consultar_slug(_montar_slug(cidade, estado, bairro))
+        if bairro_loc is not None:
+            return {**bairro_loc, "bairro_encontrado": True}
+    return {**cidade_loc, "bairro_encontrado": False}
 
 
 def buscar_comparaveis(cidade: str, estado: str, bairro: str = "", grupo: str = "", limite: int = 80) -> list[dict]:

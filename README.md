@@ -23,7 +23,7 @@ python3 -m venv .venv
 
 ```bash
 # Busca imóveis nas fontes configuradas e salva no banco (data/leiloes.db)
-# --ufs default é SP e MG (nosso foco); passe outras UFs se quiser ampliar
+# --ufs: ver 'Estados cobertos' abaixo (o script diário define a lista)
 .venv/bin/python cli.py atualizar --fontes zukerman sold --ufs SP MG
 
 # A Caixa precisa de uma janela de navegador real (não funciona headless nem
@@ -139,6 +139,25 @@ só por não termos conseguido buscar de novo.
 | **Caixa** (`scraper/caixa.py`) | Baixa o CSV oficial (`Lista_imoveis_<UF>.csv`) publicado pela Caixa. | **Precisa do Playwright com uma janela de navegador de verdade** (`headless=False`) — o domínio usa Radware Bot Manager e bloqueia `requests`/`curl` e até Chromium headless. |
 | **Leilão Imóvel** (`scraper/leilaoimovel.py`) | HTML estático do agregador `meuarremateleiloes.com.br` (leilaoimovel.com.br), sem proteção anti-bot. | Cobre Banco do Brasil, Itaú, Bradesco e Santander (ver `BANCOS_SLUG`) — nenhum desses bancos tem portal próprio de leilão como a Caixa, usam leiloeiros terceirizados. Esse agregador parece ser do mesmo grupo da Priscila Perini/Smart Leilões (assets em `/img/perini/...`). Mistura "Venda Direta" (preço fixo, sem avaliação de banco pra comparar — só o BB expõe isso hoje nesse agregador) e "Leilão Extrajudicial" (com desconto vs. avaliação) — cada imóvel vem marcado com `modalidade`. |
 | **Smart Leilões Caixa** (`scraper/smartleiloes.py`) | API JSON não documentada (App Engine, achada inspecionando o bundle JS do site Angular em `smartleiloescaixa.com.br` — `POST /imovel/busca` com `{estados, max, offset}`). | **Não é uma fonte de imóveis novos** — revende os MESMOS imóveis da Caixa (`origemIntegracao: "CAIXA"`, `hdnImovel` = o mesmo `id_no_site` que `scraper/caixa.py` já usa). Por isso não entra no `--fontes` como um scraper comum: `cli.py atualizar` usa os registros pra **enriquecer** (`db.enriquecer_imovel`/`backfill_se_vazio`) os imóveis `caixa:<id>` já existentes com campos que a Caixa não publica (quartos, garagem, lat/lng, aceita FGTS/consórcio/financiamento/parcelamento, pendência de ação judicial, modalidade de venda original) e só insere como novo quando o `hdnImovel` realmente não existe ainda na nossa base (gap de cobertura, ~90% se sobrepõe ao `caixa.py` numa amostra SP/MG). **Cuidado**: os ids "achados" pelo Smart Leilões (sejam enriquecimento ou inserção nova) precisam entrar em `ids_vistos_por_fonte["caixa"]` antes da checagem de encerrados-por-ausência — já foi um bug real aqui (imóveis novos inseridos e fechados na mesma execução). `quartos`, `garagem`, `aceitaConsorcio`, `aceitaParcelamento` e `temAcaoJudicial` quase sempre vêm zerados/nulos na prática (dado pouco preenchido pela fonte, não é bug nosso). |
+
+## Estados cobertos
+
+A lista vive em `run_daily.sh` (`ESTADOS`). Medição de 28/10 (Caixa, residencial/terreno):
+SP+MG 3.266 imóveis, país inteiro 22.289 (6,8x). **Brasil todo não cabe** no
+formato atual: o banco passaria de ~150 MB (o GitHub rejeita arquivo > 100 MB) e
+o dashboard, que renderiza todas as linhas no navegador, levaria ~5 s por filtro
+com >2 GB de memória.
+
+- **Bloco A (ativo):** todos menos GO, PE e RJ — ~6,1 mil imóveis da Caixa a mais.
+- **Bloco B (próximo):** GO (3.399), depois PE (1.061). Antes de ligar, medir
+  banco/dashboard de novo; a tabela do dashboard provavelmente precisa de
+  paginação e o detalhe do cálculo de carga sob demanda.
+- **RJ: 100% fora, de propósito** (8.414 imóveis, 38% do país). Não adicione.
+
+Comparáveis de mercado (QuintoAndar): ~3,4 s por região na primeira vez (cache de
+30 dias). `resolver_localizacao` consulta a cidade uma vez por execução e pula os
+bairros das que o QuintoAndar não conhece — sem isso, os estados novos custavam ~2h
+de consultas inúteis (cobertura fora de SP/MG é baixa: 1 de 8 na amostra).
 
 ## Modalidades e o modelo de custo (campo `modalidade`)
 
