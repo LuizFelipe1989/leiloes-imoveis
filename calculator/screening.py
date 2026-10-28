@@ -108,30 +108,40 @@ def montar_inputs_rapidos(listing: Listing, preco_m2_mercado: Optional[float] = 
 def montar_inputs_venda_direta(listing: Listing, preco_m2_mercado: Optional[float] = None) -> Optional[InvestmentInputs]:
     """Monta InvestmentInputs pra imóvel de VENDA DIRETA (preço fixo, sem lance/disputa).
 
-    Sem avaliação de banco pra comparar (a "venda direta" É o preço final,
-    não uma abertura de disputa) — então a única referência possível de
-    "é um bom preço?" é o valor de mercado por comparáveis (QuintoAndar).
-    Sem comparável (região não coberta, ou terreno/tipo que a Zuk/QuintoAndar
-    não lista), não dá pra avaliar com segurança: retorna None.
+    Referência de valor, em ordem de preferência:
+    1. Comparáveis de mercado (QuintoAndar) — quando a região é coberta e o
+       imóvel tem área.
+    2. Avaliação da Caixa (com o mesmo haircut do leilão) — quando não há
+       comparável OU ele é implausível (> DESVIO_MAXIMO_VS_AVALIACAO x a
+       avaliação, bairro heterogêneo). A avaliação da Caixa não é chute: por
+       contrato o engenheiro avaliador precisa anexar pesquisa de mercado que
+       valide o valor, então ela é uma referência de mercado legítima, só
+       menos granular que um comparável por bairro.
+    Sem nenhuma das duas (ex: venda direta do BB, que não expõe avaliação, em
+    região sem comparável) não dá pra avaliar com segurança: retorna None.
 
     Sem leiloeiro no processo, então sem a comissão de 5% que existe no leilão
     — os demais custos (ITBI, cartório, reforma, posse, corretagem, IR) são
     os mesmos.
     """
-    area = getattr(listing, "area_m2", None)
-    if not listing.valor_lance_atual or not preco_m2_mercado or not area:
+    if not listing.valor_lance_atual:
         return None
 
-    valor_mercado = preco_m2_mercado * area
-    fonte_venda = "comparaveis_quintoandar"
-    # mesma trava do leilão (DESVIO_MAXIMO_VS_AVALIACAO): comparável de bairro
-    # heterogêneo "vaza" pra uma sub-região bem mais cara e gera ROI de
-    # centenas de %. Auditoria de 27/10: os 8 maiores ROI da venda direta da
-    # Caixa tinham todos o comparável a 2-3,5x a avaliação do banco. Quando a
-    # avaliação existe (Caixa publica; o BB não), ela serve de régua e de
-    # fallback; sem ela (BB) não há como checar e o comparável vale como está.
+    area = getattr(listing, "area_m2", None)
     avaliacao_banco = getattr(listing, "valor_avaliacao", None)
-    if avaliacao_banco and valor_mercado > avaliacao_banco * DESVIO_MAXIMO_VS_AVALIACAO:
+    valor_mercado: Optional[float] = None
+    fonte_venda = "comparaveis_quintoandar"
+    if preco_m2_mercado and area:
+        valor_mercado = preco_m2_mercado * area
+        # mesma trava do leilão: comparável de bairro heterogêneo "vaza" pra uma
+        # sub-região bem mais cara e gera ROI de centenas de % (auditoria de
+        # 27/10: os 8 maiores ROI da venda direta da Caixa tinham o comparável a
+        # 2-3,5x a avaliação). Sem avaliação (BB) não há régua, vale como está.
+        if avaliacao_banco and valor_mercado > avaliacao_banco * DESVIO_MAXIMO_VS_AVALIACAO:
+            valor_mercado = None
+    if valor_mercado is None:
+        if not avaliacao_banco:
+            return None
         valor_mercado = avaliacao_banco * (1 - HAIRCUT_VENDA_PCT)
         fonte_venda = "haircut_avaliacao"
     ocupado = listing.ocupado == "sim"

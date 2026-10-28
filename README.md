@@ -150,7 +150,7 @@ caminho de cálculo em `calculator/screening.py::analise_rapida`:
 |---|---|---|---|---|
 | `leilao` (default) | 1º Leilão, 2º Leilão, Licitação Aberta | Sim, credenciado | 5% sobre o lance | Avaliação do banco |
 | `venda_online` | Venda Online (disputa com cronômetro no portal da Caixa) | Não | 0% | Avaliação do banco (mesma referência do leilão) |
-| `venda_direta` | Venda Direta / Compra Direta (preço fixo, 1ª proposta válida vence) | Não | 0% | **Comparável de mercado** (QuintoAndar) — a Caixa não expõe avaliação confiável pra comparar numa venda sem disputa |
+| `venda_direta` | Venda Direta / Compra Direta (preço fixo, 1ª proposta válida vence) | Não | 0% | Comparável de mercado (QuintoAndar); sem comparável (ou implausível), **avaliação da Caixa** com haircut de 5% |
 
 Pra imóveis da **Caixa** a modalidade vem da coluna **"Modalidade de venda" do CSV
 oficial** (`scraper/caixa.py::MODALIDADE_CSV`: "Leilão SFI - Edital Único" e
@@ -166,12 +166,14 @@ modalidade, 5% da base da Caixa (180 imóveis) ficou no modelo de custo errado
 Leilão Imóvel (`scraper/leilaoimovel.py`) marca `venda_direta` direto pros
 imóveis de Itaú/Bradesco/Santander/BB sem avaliação de banco.
 
-**Trava de sanidade na venda direta:** o comparável de mercado é usado como
-referência, mas se passar de `DESVIO_MAXIMO_VS_AVALIACAO` (1,5x) a avaliação do
-banco, cai no haircut sobre a avaliação — igual ao leilão. Sem essa trava, os 8
-maiores ROI da venda direta da Caixa eram artefatos (comparável a 2-3,5x a
-avaliação, bairros heterogêneos). Quando não há avaliação (BB) não há como
-checar e o comparável vale como está.
+**Referência de valor na venda direta:** 1) comparável de mercado (QuintoAndar);
+2) se não houver comparável — ou se ele passar de `DESVIO_MAXIMO_VS_AVALIACAO`
+(1,5x) a avaliação, o que indica bairro heterogêneo (sem essa trava, os 8 maiores
+ROI da venda direta da Caixa eram artefatos, comparável a 2-3,5x a avaliação) —
+a **avaliação da Caixa** com o mesmo haircut de 5% do leilão. Isso é legítimo
+porque, por contrato, o engenheiro avaliador da Caixa precisa anexar pesquisa de
+mercado que valide a avaliação. Sem comparável e sem avaliação (venda direta do
+BB) não há referência: o imóvel fica sem ROI.
 
 Quando a modalidade de um imóvel já existente muda (`upsert_listing` ->
 `db.sincronizar_modalidade`, pra qualquer fonte),

@@ -81,9 +81,23 @@ def test_venda_online_usa_avaliacao_do_banco_como_referencia():
     assert inputs.valor_venda_estimado == 250_000 * (1 - HAIRCUT_VENDA_PCT)
 
 
-def test_venda_direta_sem_comparavel_ou_area_nao_e_analisada():
-    assert analise_rapida(_listing(), preco_m2_mercado=None, modalidade="venda_direta") is None
-    assert analise_rapida(_listing(area_m2=None), preco_m2_mercado=6000, modalidade="venda_direta") is None
+def test_venda_direta_sem_comparavel_usa_avaliacao_da_caixa():
+    # sem preço/m² na região ou sem área: cai na avaliação do banco (com o mesmo
+    # haircut do leilão) em vez de ficar sem ROI
+    esperado = 250_000 * (1 - HAIRCUT_VENDA_PCT)
+    for kwargs, preco_m2 in [({}, None), ({"area_m2": None}, 6000), ({"area_m2": 0}, 6000)]:
+        inputs, resultado = analise_rapida(_listing(**kwargs), preco_m2_mercado=preco_m2, modalidade="venda_direta")
+        assert inputs.fonte_venda_estimada == "haircut_avaliacao"
+        assert inputs.valor_venda_estimado == esperado
+        assert inputs.comissao_leiloeiro_pct == 0.0
+        assert resultado.roi_anualizado_pct is not None
+
+
+def test_venda_direta_sem_comparavel_e_sem_avaliacao_nao_e_analisada():
+    # caso do BB: sem avaliação e sem comparável não há referência nenhuma
+    assert analise_rapida(_listing(valor_avaliacao=None), preco_m2_mercado=None, modalidade="venda_direta") is None
+    assert analise_rapida(_listing(valor_avaliacao=None, area_m2=None), preco_m2_mercado=6000, modalidade="venda_direta") is None
+    assert analise_rapida(_listing(valor_lance_atual=None), preco_m2_mercado=6000, modalidade="venda_direta") is None
 
 
 def test_venda_direta_usa_comparavel_plausivel():
