@@ -76,19 +76,24 @@ def _buscar_caixa_isolado(ufs: list[str], tentativas: int = 3) -> list[Listing]:
 
 
 def cmd_atualizar(args):
-    ufs = [u.upper() for u in args.ufs]
+    # aceita "--ufs SP MG" e também "--ufs 'SP MG'" (shell que não separa a
+    # variável em palavras passava a lista inteira como UM argumento e a coleta
+    # rodava com um "estado" inexistente, sem coletar nada)
+    ufs = [u.upper() for token in args.ufs for u in token.replace(",", " ").split()]
     todas = []
     ids_vistos_por_fonte: dict[str, set] = {}
 
     if "zukerman" in args.fontes:
         print(f"[zukerman] buscando {ufs}...")
         vistos_zukerman: set = set()
+        zuk_completo = True  # só então 'sumiu da fonte' é confiável
         try:
             r = zukerman.buscar(ufs)
             print(f"[zukerman] {len(r)} imóveis")
             todas.extend(r)
             vistos_zukerman |= {l.id for l in r}
         except Exception as e:
+            zuk_completo = False
             print(f"[zukerman] erro: {e}")
 
         # bancos que usam a Zuk como leiloeiro oficial (Itaú, Bradesco, Santander) —
@@ -101,9 +106,14 @@ def cmd_atualizar(args):
                 todas.extend(r_banco)
                 vistos_zukerman |= {l.id for l in r_banco}
             except Exception as e:
+                zuk_completo = False
                 print(f"[zukerman:{banco}] erro: {e}")
-        if vistos_zukerman:
+        # Se qualquer parte falhou (ex: 429), o conjunto "visto" é parcial: usar
+        # ele fecharia como "sumido" tudo que a parte que falhou deveria trazer.
+        if zuk_completo and vistos_zukerman:
             ids_vistos_por_fonte["zukerman"] = vistos_zukerman
+        elif not zuk_completo:
+            print("[zukerman] coleta incompleta — pulando a checagem de encerrados dele")
 
     if "sold" in args.fontes:
         print(f"[sold] buscando {ufs}...")

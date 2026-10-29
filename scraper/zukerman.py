@@ -13,6 +13,7 @@ para o caso de uso de localização/custo-benefício de qualquer forma).
 
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,25 @@ from db.store import Listing
 
 BASE_URL = "https://www.portalzuk.com.br"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; leiloes-imoveis-bot/1.0)"}
+
+
+PAUSA_ENTRE_PAGINAS = 1.5  # segundos; o site devolve 429 se pedirmos ~20 páginas coladas
+
+
+def _get(url: str) -> requests.Response:
+    """GET com espera e nova tentativa quando o site limita a taxa (429/503).
+    Ao ampliar de 2 pra 24 estados a coleta tomou 429 na 17ª página e perdeu a
+    fonte inteira. Respeita Retry-After quando o site manda."""
+    for tentativa in range(5):
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+        if resp.status_code not in (429, 503):
+            resp.raise_for_status()
+            return resp
+        espera = int(resp.headers.get("Retry-After") or 0) or 8 * 2 ** tentativa
+        print(f"[zukerman] HTTP {resp.status_code} em {url.rsplit('/', 1)[-1]}, esperando {espera}s...", file=sys.stderr)
+        time.sleep(min(espera, 120))
+    resp.raise_for_status()
+    return resp
 
 
 def _parse_money(text: str) -> Optional[float]:
@@ -136,9 +156,9 @@ def buscar(ufs: list[str]) -> list[Listing]:
     listings: list[Listing] = []
     for uf in ufs:
         url = f"{BASE_URL}/leilao-de-imoveis/u/todos-imoveis/{uf.lower()}"
-        resp = requests.get(url, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
+        resp = _get(url)
         listings.extend(_parse_listing_page(resp.text))
+        time.sleep(PAUSA_ENTRE_PAGINAS)
     return listings
 
 
@@ -157,8 +177,8 @@ def buscar_por_banco(banco: str) -> list[Listing]:
     """Busca a primeira leva de imóveis de um banco específico (ver BANCOS_SLUG)."""
     slug = BANCOS_SLUG[banco]
     url = f"{BASE_URL}/leilao-de-imoveis/v/{slug}"
-    resp = requests.get(url, headers=HEADERS, timeout=30)
-    resp.raise_for_status()
+    resp = _get(url)
+    time.sleep(PAUSA_ENTRE_PAGINAS)
     return _parse_listing_page(resp.text, banco=banco)
 
 
@@ -173,9 +193,7 @@ def buscar_bancos(bancos: list[str]) -> list[Listing]:
 def buscar_cidade(uf: str, regiao: str, cidade_slug: str) -> list[Listing]:
     """Busca imóveis numa cidade específica, ex: buscar_cidade('sp', 'capital', 'sao-paulo')."""
     url = f"{BASE_URL}/leilao-de-imoveis/c/todos-imoveis/{uf.lower()}/{regiao}/{cidade_slug}"
-    resp = requests.get(url, headers=HEADERS, timeout=30)
-    resp.raise_for_status()
-    return _parse_listing_page(resp.text)
+    return _parse_listing_page(_get(url).text)
 
 
 if __name__ == "__main__":

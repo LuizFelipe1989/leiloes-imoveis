@@ -148,10 +148,16 @@ formato atual: o banco passaria de ~150 MB (o GitHub rejeita arquivo > 100 MB) e
 o dashboard, que renderiza todas as linhas no navegador, levaria ~5 s por filtro
 com >2 GB de memória.
 
-- **Bloco A (ativo):** todos menos GO, PE e RJ — ~6,1 mil imóveis da Caixa a mais.
-- **Bloco B (próximo):** GO (3.399), depois PE (1.061). Antes de ligar, medir
-  banco/dashboard de novo; a tabela do dashboard provavelmente precisa de
-  paginação e o detalhe do cálculo de carga sob demanda.
+- **Bloco A (ativo desde 29/10):** todos menos GO, PE e RJ. Medido: base foi de
+  3,9 mil pra 11,1 mil imóveis ativos (2,8x); `leiloes.db` 24,9 -> 35,4 MB
+  (5,1 MB gzip); `dashboard.html` 8,8 -> 24,4 MB; no navegador a carga leva ~2,4 s,
+  148 MB de memória, e o perfil mais pesado (Leilão, 5,8 mil linhas) abre em ~1,4 s.
+  Análise inicial: 2.831 consultas de comparáveis em ~104 min ativos (2,2 s cada).
+  Fora de SP/MG o valor de venda vem da avaliação da Caixa em ~84% dos imóveis.
+- **Bloco B (próximo):** GO (3.399), depois PE (1.061), ~+4,5 mil imóveis
+  (~15 mil no total). Medir banco/dashboard entre um e outro; perto de 15-20 mil
+  linhas a tabela do dashboard precisa de paginação e o detalhe do cálculo de
+  carga sob demanda.
 - **RJ: 100% fora, de propósito** (8.414 imóveis, 38% do país). Não adicione.
 
 Comparáveis de mercado (QuintoAndar): ~3,4 s por região na primeira vez (cache de
