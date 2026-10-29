@@ -159,9 +159,11 @@ com >2 GB de memória.
   venda direta); oportunidades 2.429 -> 4.309; `leiloes.db` 35,4 -> 44,9 MB;
   `dashboard.html` 24,4 -> 36,0 MB; carga no navegador ~2,7 s, 68 MB de memória,
   14,3 mil linhas na tabela. Ainda sem paginação.
-- **Bloco B, PE (próximo):** 1.061 imóveis, ~16,5 mil no total. Medir banco/dashboard
-  antes; perto de 15-20 mil linhas a tabela do dashboard precisa de paginação e o
-  detalhe do cálculo de carga sob demanda.
+- **Bloco B, PE (ativo desde 29/10):** base foi de 15,4 mil pra 16,7 mil imóveis
+  ativos (PE: 257 leilão, 241 venda online, 676 venda direta); oportunidades
+  4.309 -> 4.843; `leiloes.db` 44,9 -> 47,0 MB; `dashboard.html` 36,0 -> 38,9 MB;
+  carga no navegador ~3,0 s, 74 MB de memória. Ainda sem paginação; o limite
+  prático fica em ~20 mil linhas.
 - **RJ: 100% fora, de propósito** (8.414 imóveis, 38% do país). Não adicione.
 
 Comparáveis de mercado (QuintoAndar): ~3,4 s por região na primeira vez (cache de
