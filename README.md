@@ -162,8 +162,15 @@ com >2 GB de memória.
 - **Bloco B, PE (ativo desde 29/10):** base foi de 15,4 mil pra 16,7 mil imóveis
   ativos (PE: 257 leilão, 241 venda online, 676 venda direta); oportunidades
   4.309 -> 4.843; `leiloes.db` 44,9 -> 47,0 MB; `dashboard.html` 36,0 -> 38,9 MB;
-  carga no navegador ~3,0 s, 74 MB de memória. Ainda sem paginação; o limite
-  prático fica em ~20 mil linhas.
+  carga no navegador ~3,0 s, 74 MB de memória (ainda com todas as linhas no DOM).
+- **Dashboard enxuto (29/10):** tabela paginada (100 por página) e cálculo sob
+  demanda. `dashboard.html` 38,9 -> 7,4 MB, carga ~3,0 s -> ~0,3 s. O HTML leva só
+  as colunas da tabela; premissas, resultado do cálculo e informações adicionais
+  ficam em `detalhes/<modalidade>-<UF>.json` (75 arquivos, 17 MB no total), baixados
+  no primeiro clique em "ver cálculo" daquele grupo. Consequência: o dashboard
+  precisa ser aberto pelo GitHub Pages ou por um servidor local
+  (`python3 -m http.server`), não direto do disco (`file://` bloqueia o fetch). O
+  build apaga os arquivos de `detalhes/` que não foram regerados.
 - **RJ: 100% fora, de propósito** (8.414 imóveis, 38% do país). Não adicione.
 
 Comparáveis de mercado (QuintoAndar): ~3,4 s por região na primeira vez (cache de

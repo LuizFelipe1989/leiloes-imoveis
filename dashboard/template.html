@@ -165,6 +165,9 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
 .wide-scroll { overflow: auto; max-height: 72vh; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; font-size: 12.5px; color: var(--ink-secondary); }
+.pager button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--page); color: var(--ink-primary, inherit); cursor: pointer; }
+.pager button:disabled { opacity: 0.4; cursor: default; }
 </style>
 </head>
 <body>
@@ -267,6 +270,11 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
         <tbody id="tbody"></tbody>
       </table>
     </div>
+    <div class="pager" id="pager">
+      <button type="button" id="pg-prev">← Anterior</button>
+      <span id="pg-info">—</span>
+      <button type="button" id="pg-next">Próxima →</button>
+    </div>
     <div class="alert-empty" id="empty" style="display:none">Nenhum imóvel encontrado com esses filtros.</div>
   </section>
 
@@ -282,6 +290,10 @@ a.toggle-detalhe.open::before { transform: rotate(90deg); }
 
 let sortKey = "roi_anualizado_pct";
 let sortDir = -1;
+const POR_PAGINA = 100;
+let paginaAtual = 0;
+let linhasFiltradas = [];
+const detalhesCache = new Map(); // "<modalidade>-<UF>" -> Promise do JSON {id: campos}
 let modoAtual = "leilao"; // "leilao" | "venda_online" | "venda_direta" — trocado pelo seletor de perfil
 
 const MODO_LABEL = {
@@ -398,7 +410,30 @@ function applyFiltersAndSort() {
     return sortDir * (va - vb);
   });
   document.getElementById("tabela-sub").textContent = `${rows.length} imóvel(is) — ordenado por ${sortKey}, clique numa coluna pra reordenar`;
-  renderTable(rows);
+  linhasFiltradas = rows;
+  paginaAtual = 0;
+  renderTable();
+}
+
+function carregarDetalhes(r) {
+  const chave = `${r.modalidade || "leilao"}-${r.estado || "NA"}`;
+  if (!detalhesCache.has(chave)) {
+    detalhesCache.set(chave, fetch(`detalhes/${chave}.json`).then(resp => {
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return resp.json();
+    }).catch(err => { detalhesCache.delete(chave); throw err; }));
+  }
+  return detalhesCache.get(chave);
+}
+
+async function abrirDetalhe(r, cell) {
+  cell.innerHTML = `<div class="detalhe-vazio">Carregando…</div>`;
+  try {
+    const todos = await carregarDetalhes(r);
+    cell.innerHTML = detalheHtml(Object.assign({}, r, todos[r.id] || {}));
+  } catch (err) {
+    cell.innerHTML = `<div class="detalhe-vazio">Não consegui carregar o cálculo (${err.message}). Os detalhes ficam em arquivos separados: abra o dashboard pelo GitHub Pages ou por um servidor local, não direto do disco.</div>`;
+  }
 }
 
 const CAMPO_LABEL = {
@@ -524,10 +559,19 @@ function detalheHtml(r) {
     </div>`;
 }
 
-function renderTable(rows) {
+function renderTable() {
+  const rows = linhasFiltradas;
   const tbody = document.getElementById("tbody");
+  const paginas = Math.max(1, Math.ceil(rows.length / POR_PAGINA));
+  paginaAtual = Math.min(paginaAtual, paginas - 1);
+  const inicio = paginaAtual * POR_PAGINA;
+  const pagina = rows.slice(inicio, inicio + POR_PAGINA);
   document.getElementById("empty").style.display = rows.length ? "none" : "block";
-  tbody.innerHTML = rows.map((r, i) => `
+  document.getElementById("pager").style.display = rows.length > POR_PAGINA ? "flex" : "none";
+  document.getElementById("pg-info").textContent = `Página ${paginaAtual + 1} de ${paginas} (${inicio + 1}–${inicio + pagina.length} de ${rows.length})`;
+  document.getElementById("pg-prev").disabled = paginaAtual === 0;
+  document.getElementById("pg-next").disabled = paginaAtual >= paginas - 1;
+  tbody.innerHTML = pagina.map((r, i) => `
     <tr>
       <td><span class="fonte-tag">${r.fonte}</span></td>
       <td>${r.banco || "—"}</td>
@@ -544,7 +588,7 @@ function renderTable(rows) {
       <td>${r.url ? `<a class="link" href="${r.url}" target="_blank" rel="noopener">ver imóvel →</a>` : "—"}</td>
       <td><a class="link toggle-detalhe" href="#" data-idx="${i}">ver cálculo</a></td>
     </tr>
-    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="14" style="padding:0;background:var(--page);">${detalheHtml(r)}</td></tr>
+    <tr class="detail-row" id="detalhe-${i}" hidden><td colspan="14" style="padding:0;background:var(--page);"></td></tr>
   `).join("");
   tbody.querySelectorAll(".toggle-detalhe").forEach(a => {
     a.addEventListener("click", (e) => {
@@ -553,9 +597,19 @@ function renderTable(rows) {
       row.hidden = !row.hidden;
       a.classList.toggle("open", !row.hidden);
       a.textContent = row.hidden ? "ver cálculo" : "esconder";
+      const cell = row.firstElementChild;
+      if (!row.hidden && !cell.firstElementChild) abrirDetalhe(pagina[a.dataset.idx], cell);
     });
   });
 }
+
+function irParaPagina(delta) {
+  paginaAtual += delta;
+  renderTable();
+  document.getElementById("tabela").scrollIntoView({block: "start"});
+}
+document.getElementById("pg-prev").addEventListener("click", () => irParaPagina(-1));
+document.getElementById("pg-next").addEventListener("click", () => irParaPagina(1));
 
 document.querySelectorAll("thead th[data-key]").forEach(th => {
   th.addEventListener("click", () => {

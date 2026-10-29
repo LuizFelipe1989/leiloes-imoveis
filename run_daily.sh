@@ -22,8 +22,8 @@ mkdir -p "$DIR/logs"
   "$DIR/.venv/bin/python" cli.py analisar
   "$DIR/.venv/bin/python" dashboard/build_dashboard.py
 
-  if [ -n "$(git status --short data/leiloes.db dashboard.html)" ]; then
-    git add data/leiloes.db dashboard.html
+  if [ -n "$(git status --short data/leiloes.db dashboard.html detalhes)" ]; then
+    git add data/leiloes.db dashboard.html detalhes
     git commit -m "Atualização automática de oportunidades ($(date +%Y-%m-%d))"
     git push
     echo "Commit e push feitos."

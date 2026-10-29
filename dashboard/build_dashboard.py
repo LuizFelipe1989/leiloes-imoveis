@@ -14,8 +14,23 @@ from scraper.filters import categoria_imovel
 TIPO_LABEL = {"casa": "Casa", "apartamento": "Apartamento"}
 
 OUTPUT_PATH = Path(__file__).parent.parent / "dashboard.html"
+DETALHES_DIR = Path(__file__).parent.parent / "detalhes"
 TEMPLATE_PATH = Path(__file__).parent / "template.html"
 FONTS_DIR = Path(__file__).parent.parent / "fonts"
+
+# o HTML leva só o que a tabela mostra; o resto (premissas, resultado do cálculo,
+# informações adicionais) vai pra detalhes/<modalidade>-<UF>.json e é baixado
+# quando alguém clica em "ver cálculo" — era ~60% do tamanho do arquivo.
+CAMPOS_TABELA = [
+    "id", "modalidade", "fonte", "banco", "categoria", "tipo", "estado", "cidade",
+    "bairro", "valor_lance_atual", "valor_avaliacao", "desconto_pct",
+    "roi_anualizado_pct", "status", "url",
+]
+CAMPOS_DETALHE = [
+    "premissas", "detalhe", "praca", "quartos", "garagem", "aceita_fgts",
+    "aceita_financiamento", "aceita_consorcio", "aceita_parcelamento",
+    "tem_acao_judicial", "lat", "lng",
+]
 
 FONT_PLACEHOLDERS = [
     ("__FONT_SERIF_600__", "source-serif-600"),
@@ -64,6 +79,31 @@ def _montar_resumo(rows: list[dict]) -> dict:
     }
 
 
+def _json(obj) -> str:
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+def chave_detalhe(row: dict) -> str:
+    return f"{row.get('modalidade') or 'leilao'}-{row.get('estado') or 'NA'}"
+
+
+def _gravar_detalhes(rows: list[dict]) -> int:
+    """Grava um JSON por modalidade+UF ({id: campos do detalhe}) e apaga os
+    arquivos de execuções anteriores que não foram regerados."""
+    DETALHES_DIR.mkdir(exist_ok=True)
+    grupos: dict[str, dict] = {}
+    for r in rows:
+        entrada = {k: r[k] for k in CAMPOS_DETALHE if r.get(k) not in (None, "", 0, False)}
+        if entrada:
+            grupos.setdefault(chave_detalhe(r), {})[str(r["id"])] = entrada
+    for chave, conteudo in grupos.items():
+        (DETALHES_DIR / f"{chave}.json").write_text(_json(conteudo), encoding="utf-8")
+    for antigo in DETALHES_DIR.glob("*.json"):
+        if antigo.stem not in grupos:
+            antigo.unlink()
+    return len(grupos)
+
+
 def build():
     with connect() as conn:
         rows = [_row_to_dict(r) for r in listar_com_ultima_analise(conn)]
@@ -85,12 +125,14 @@ def build():
         template = template.replace(placeholder, (FONTS_DIR / f"{fname}.b64").read_text().strip())
     html = template.replace(
         "/*__DADOS__*/",
-        f"const DADOS = {json.dumps(rows, ensure_ascii=False)};\nconst RESUMOS = {json.dumps(resumos, ensure_ascii=False)};",
+        f"const DADOS = {_json([{k: r.get(k) for k in CAMPOS_TABELA} for r in rows])};\n"
+        f"const RESUMOS = {_json(resumos)};",
     )
     OUTPUT_PATH.write_text(html, encoding="utf-8")
+    n_arquivos = _gravar_detalhes(rows)
     resumo_fontes = ", ".join(f"{resumos[m]['total']} {m}" for m in MODALIDADES)
     print(f"Dashboard gerado em {OUTPUT_PATH} ({total} imóveis — {resumo_fontes}, "
-          f"{oportunidades_total} oportunidades)")
+          f"{oportunidades_total} oportunidades); detalhes em {n_arquivos} arquivos")
 
 
 if __name__ == "__main__":
