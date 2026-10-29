@@ -154,10 +154,14 @@ com >2 GB de memória.
   148 MB de memória, e o perfil mais pesado (Leilão, 5,8 mil linhas) abre em ~1,4 s.
   Análise inicial: 2.831 consultas de comparáveis em ~104 min ativos (2,2 s cada).
   Fora de SP/MG o valor de venda vem da avaliação da Caixa em ~84% dos imóveis.
-- **Bloco B (próximo):** GO (3.399), depois PE (1.061), ~+4,5 mil imóveis
-  (~15 mil no total). Medir banco/dashboard entre um e outro; perto de 15-20 mil
-  linhas a tabela do dashboard precisa de paginação e o detalhe do cálculo de
-  carga sob demanda.
+- **Bloco B, GO (ativo desde 29/10):** base foi de 11,1 mil pra 15,4 mil imóveis
+  ativos (GO sozinho: 3.683, o maior estado: 755 leilão, 1.061 venda online, 1.867
+  venda direta); oportunidades 2.429 -> 4.309; `leiloes.db` 35,4 -> 44,9 MB;
+  `dashboard.html` 24,4 -> 36,0 MB; carga no navegador ~2,7 s, 68 MB de memória,
+  14,3 mil linhas na tabela. Ainda sem paginação.
+- **Bloco B, PE (próximo):** 1.061 imóveis, ~16,5 mil no total. Medir banco/dashboard
+  antes; perto de 15-20 mil linhas a tabela do dashboard precisa de paginação e o
+  detalhe do cálculo de carga sob demanda.
 - **RJ: 100% fora, de propósito** (8.414 imóveis, 38% do país). Não adicione.
 
 Comparáveis de mercado (QuintoAndar): ~3,4 s por região na primeira vez (cache de

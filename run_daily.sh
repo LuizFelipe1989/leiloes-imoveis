@@ -14,10 +14,10 @@ mkdir -p "$DIR/logs"
 {
   echo "=== Início: $(date) ==="
 
-  # Bloco A: todos os estados MENOS GO e PE (bloco B, entram depois) e RJ (fica
+  # Blocos A e B-GO: todos os estados MENOS PE (entra depois do GO) e RJ (fica
   # fora de propósito: ~8,4 mil imóveis da Caixa, 38% do país, não cabe no
   # dashboard/banco atuais — ver README, "Estados cobertos").
-  ESTADOS="SP MG AC AL AM AP BA CE DF ES MA MS MT PA PB PI PR RN RO RR RS SC SE TO"
+  ESTADOS="SP MG AC AL AM AP BA CE DF ES GO MA MS MT PA PB PI PR RN RO RR RS SC SE TO"
   "$DIR/.venv/bin/python" cli.py atualizar --fontes zukerman sold caixa leilaoimovel smartleiloes --ufs $ESTADOS
   "$DIR/.venv/bin/python" cli.py analisar
   "$DIR/.venv/bin/python" dashboard/build_dashboard.py
