@@ -22,7 +22,7 @@ from db import (
     connect, save_analise, upsert_listings, listar_com_ultima_analise,
     chave_regiao, get_comparavel_cache, set_comparavel_cache,
     marcar_encerrados_por_ausencia, marcar_encerrados_por_data_passada,
-    enriquecer_imovel, backfill_se_vazio,
+    enriquecer_imovel, backfill_se_vazio, podar_analises_encerradas, compactar_se_necessario,
 )
 from db.store import Listing, upsert_listing
 from scraper import zukerman, sold, leilaoimovel, smartleiloes
@@ -242,6 +242,13 @@ def cmd_atualizar(args):
         encerrados_data = marcar_encerrados_por_data_passada(conn)
         print(f"Encerrados: {encerrados_ausencia} por terem sumido da fonte, "
               f"{encerrados_data} por data de leilão já vencida")
+        print(f"Análises de imóveis encerrados removidas: {podar_analises_encerradas(conn)}")
+    _compactar_banco()
+
+
+def _compactar_banco():
+    if compactar_se_necessario():
+        print("Banco compactado (VACUUM)")
 
 
 def cmd_limpar_comerciais(args):

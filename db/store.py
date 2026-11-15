@@ -213,6 +213,9 @@ def backfill_se_vazio(conn: sqlite3.Connection, imovel_id: str, campo: str, valo
 
 
 def save_analise(conn: sqlite3.Connection, imovel_id: str, inputs: dict, resultado) -> None:
+    # só a análise mais recente é lida (listar_com_ultima_analise); manter as
+    # antigas fez a tabela chegar a 60% do banco, com 14,5 mil linhas mortas.
+    conn.execute("DELETE FROM analises WHERE imovel_id = ?", (imovel_id,))
     conn.execute(
         """INSERT INTO analises
            (imovel_id, inputs_json, desconto_pct, investimento_total, lucro_liquido, roi_pct, roi_anualizado_pct, criado_em)
@@ -230,6 +233,31 @@ def save_analise(conn: sqlite3.Connection, imovel_id: str, inputs: dict, resulta
     )
     conn.execute("UPDATE imoveis SET status = 'analisado', ultima_atualizacao = ? WHERE id = ? AND status = 'novo'",
                  (_now(), imovel_id))
+
+
+def podar_analises_encerradas(conn: sqlite3.Connection) -> int:
+    """Apaga as análises de imóveis 'encerrado' (escondidos no dashboard). Se o
+    imóvel reaparecer, upsert_listing o reabre como 'novo' e a próxima
+    `analisar` refaz a conta com os valores atuais."""
+    return conn.execute(
+        "DELETE FROM analises WHERE imovel_id IN (SELECT id FROM imoveis WHERE status = 'encerrado')"
+    ).rowcount
+
+
+def compactar_se_necessario(db_path: Path = DEFAULT_DB_PATH, limite_livre: float = 0.10) -> bool:
+    """VACUUM quando mais de `limite_livre` das páginas do arquivo estão livres
+    (apagar linhas não encolhe o arquivo sozinho). Fora de transação, por isso
+    abre conexão própria."""
+    conn = sqlite3.connect(db_path)
+    try:
+        livres = conn.execute("PRAGMA freelist_count").fetchone()[0]
+        total = conn.execute("PRAGMA page_count").fetchone()[0]
+        if not total or livres / total < limite_livre:
+            return False
+        conn.execute("VACUUM")
+        return True
+    finally:
+        conn.close()
 
 
 STATUS_VALIDOS = ("novo", "analisado", "descartado", "arrematado", "vendido", "encerrado")

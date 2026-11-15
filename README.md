@@ -173,6 +173,13 @@ com >2 GB de memória.
   build apaga os arquivos de `detalhes/` que não foram regerados.
 - **RJ: 100% fora, de propósito** (8.414 imóveis, 38% do país). Não adicione.
 
+**Tamanho do banco (15/11):** `analises` era 60% do arquivo (57 MB) porque cada
+reanálise somava uma linha nova que ninguém lia. Agora `save_analise` mantém só a
+última por imóvel, `atualizar` apaga as análises de imóveis encerrados (se
+reaparecerem, voltam como 'novo' e são reanalisados) e compacta o arquivo (VACUUM)
+quando mais de 10% das páginas estão livres. Banco: 57,1 -> 33,1 MB, dashboard
+idêntico. O histórico antigo continua nos commits anteriores do git.
+
 Comparáveis de mercado (QuintoAndar): ~3,4 s por região na primeira vez (cache de
 30 dias). `resolver_localizacao` consulta a cidade uma vez por execução e pula os
 bairros das que o QuintoAndar não conhece — sem isso, os estados novos custavam ~2h

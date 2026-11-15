@@ -14,6 +14,8 @@ from .store import (
     enriquecer_imovel,
     backfill_se_vazio,
     sincronizar_modalidade,
+    podar_analises_encerradas,
+    compactar_se_necessario,
 )
 
 __all__ = [
@@ -32,4 +34,6 @@ __all__ = [
     "enriquecer_imovel",
     "backfill_se_vazio",
     "sincronizar_modalidade",
+    "podar_analises_encerradas",
+    "compactar_se_necessario",
 ]

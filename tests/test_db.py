@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from db import (
     connect, upsert_listings, Listing, marcar_encerrados_por_ausencia,
     marcar_encerrados_por_data_passada, sincronizar_modalidade,
+    save_analise, podar_analises_encerradas, compactar_se_necessario,
 )
 
 
@@ -132,3 +133,44 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as d:
         test_sincronizar_modalidade_apaga_analise_antiga(Path(d))
     print("OK - todos os testes passaram")
+
+
+def _resultado(roi):
+    from types import SimpleNamespace
+    return SimpleNamespace(desconto_pct=10, investimento_total=1, lucro_liquido=1, roi_pct=roi, roi_anualizado_pct=roi)
+
+
+def test_save_analise_mantem_so_a_mais_recente(tmp_path):
+    with connect(tmp_path / "test.db") as conn:
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="1", titulo="A")])
+        save_analise(conn, "caixa:1", {"a": 1}, _resultado(10))
+        save_analise(conn, "caixa:1", {"a": 2}, _resultado(30))
+        linhas = conn.execute("SELECT roi_anualizado_pct FROM analises WHERE imovel_id='caixa:1'").fetchall()
+        assert [l["roi_anualizado_pct"] for l in linhas] == [30]
+
+
+def test_podar_analises_encerradas_e_reabertura(tmp_path):
+    with connect(tmp_path / "test.db") as conn:
+        upsert_listings(conn, [
+            Listing(fonte="caixa", id_no_site="1", titulo="A"),
+            Listing(fonte="caixa", id_no_site="2", titulo="B"),
+        ])
+        save_analise(conn, "caixa:1", {}, _resultado(10))
+        save_analise(conn, "caixa:2", {}, _resultado(10))
+        marcar_encerrados_por_ausencia(conn, "caixa", {"caixa:1"})
+        assert podar_analises_encerradas(conn) == 1
+        assert conn.execute("SELECT count(*) c FROM analises WHERE imovel_id='caixa:2'").fetchone()["c"] == 0
+        assert conn.execute("SELECT count(*) c FROM analises WHERE imovel_id='caixa:1'").fetchone()["c"] == 1
+        # reaparece na fonte: reabre sem análise e vira 'novo' pra ser reanalisado
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site="2", titulo="B")])
+        assert conn.execute("SELECT status FROM imoveis WHERE id='caixa:2'").fetchone()["status"] == "novo"
+
+
+def test_compactar_se_necessario(tmp_path):
+    db = tmp_path / "test.db"
+    with connect(db) as conn:
+        upsert_listings(conn, [Listing(fonte="caixa", id_no_site=str(i), titulo="x" * 2000) for i in range(300)])
+    assert compactar_se_necessario(db) is False  # nada livre ainda
+    with connect(db) as conn:
+        conn.execute("DELETE FROM imoveis")
+    assert compactar_se_necessario(db) is True
